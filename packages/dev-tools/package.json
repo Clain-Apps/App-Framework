@@ -1,0 +1,36 @@
+{
+  "name": "@app-framework/dev-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Checks installed App-Framework packages against the latest stable published versions.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "bin": {
+    "framework-check": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "CHANGELOG.md"],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "semver": "^7.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/semver": "^7.7.1"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

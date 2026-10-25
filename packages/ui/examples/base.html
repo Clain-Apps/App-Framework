@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>App framework base interface</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <af-theme name="light">
+      <af-heading level="1">Base interface</af-heading>
+      <af-panel>
+        <af-heading level="2">Panel</af-heading>
+        <p>Spacing, type, and color come from the tag stylesheet.</p>
+      </af-panel>
+    </af-theme>
+    <script type="module">
+      import { defineAppElements } from "../dist/index.js";
+      defineAppElements();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+---
+description: Interface pieces are af-* custom elements styled by tag name
+alwaysApply: true
+---
+
+# Interface elements
+
+New shared interface pieces go in `packages/ui` as custom elements. Do not add a React component, a utility-class stylesheet, or a separate package for one control.
+
+Use the `af-` prefix and style the tag, not a class:
+
+```html
+<af-theme name="dark">
+  <af-heading level="2">Title</af-heading>
+  <af-panel>Content</af-panel>
+</af-theme>
+```
+
+```css
+af-panel {
+  padding: var(--af-space-4);
+  background: var(--af-color-panel);
+}
+```
+
+Register elements from `defineAppElements()`. Keep state on attributes, properties, and events.
+
+Do not add tabs, accordions, graphs, calendars, modals, menus, routing, or animation until a consuming application needs that element.

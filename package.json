@@ -1,0 +1,35 @@
+{
+  "name": "app-framework",
+  "private": true,
+  "type": "module",
+  "description": "Reusable capabilities, contracts, and architectural standards for independent applications.",
+  "packageManager": "pnpm@12.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.tests.json --pretty false",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "build": "tsc -b --pretty false --force",
+    "test:artifacts": "vitest run --config vitest.artifacts.config.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:artifacts",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "node scripts/publish.mjs"
+  },
+  "devDependencies": {
+    "@changesets/assemble-release-plan": "^7.0.0",
+    "@changesets/cli": "^3.0.3",
+    "@changesets/config": "^4.0.1",
+    "@changesets/types": "^7.0.0",
+    "@eslint/js": "^10.0.1",
+    "@manypkg/get-packages": "^3.1.0",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.13.0",
+    "happy-dom": "^21.0.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}
