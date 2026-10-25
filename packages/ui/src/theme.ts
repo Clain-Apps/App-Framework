@@ -1,8 +1,10 @@
+import { ElementBase } from "./element.js";
+
 const THEME_NAMES = ["light", "dark"] as const;
 
 export type ThemeName = (typeof THEME_NAMES)[number];
 
-export class ThemeElement extends HTMLElement {
+export class ThemeElement extends ElementBase {
   static get observedAttributes(): readonly string[] {
     return ["name"];
   }

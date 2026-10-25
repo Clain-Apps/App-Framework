@@ -1,0 +1,19 @@
+---
+description: What a test should prove and where it lives
+globs: "**/*.{test,spec}.ts,**/*.{test,spec}.tsx"
+alwaysApply: false
+---
+
+# Testing
+
+- A test proves one behaviour a caller can observe: the return value, the thrown error, or the side effect that is part of the contract.
+- Name the test for that behaviour, not for the function list it happens to touch.
+- Cover the failure path that protects an invariant (a missing required value, a refused unsafe path), not only the happy path.
+- Build the smallest input that reaches the behaviour. Do not start a service when a function call will do.
+- Keep the test next to the code it covers. A change to the contract updates the test in the same change.
+
+```ts
+it("rejects a non-root deploy account named root", () => {
+  expect(deployUser("root")).toBe(false);
+});
+```

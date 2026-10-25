@@ -1,0 +1,18 @@
+---
+description: Name functions, types, and files for the behaviour they hold
+alwaysApply: false
+---
+
+# Naming
+
+- Use `camelCase` for functions and variables, and `PascalCase` for classes and types.
+- Name a file for the module it holds, in lowercase. A multi-word file uses a hyphen: `load-config.ts`.
+- Prefer a name from the domain (`releaseId`) over a name from the mechanism (`data`, `item`, `result`).
+- A boolean reads as a question: `isReady`, `hasIndex`.
+- Do not encode a type in the name (`nameString`). Do encode a unit when two units would be confused (`timeoutMs`).
+
+```ts
+function releaseId(sha: string, runId: number): string {
+  return `${sha}-${runId}`;
+}
+```

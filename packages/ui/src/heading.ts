@@ -1,6 +1,8 @@
+import { ElementBase } from "./element.js";
+
 const DEFAULT_LEVEL = 2;
 
-export class HeadingElement extends HTMLElement {
+export class HeadingElement extends ElementBase {
   static get observedAttributes(): readonly string[] {
     return ["level"];
   }

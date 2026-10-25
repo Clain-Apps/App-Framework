@@ -1,60 +1,34 @@
 # Responsibilities
 
-## What App Framework is
+App Framework is the central source of recurring application patterns. An improvement made here can be adopted by applications that already exist and by ones that do not exist yet.
 
-App Framework is a shared library of reusable packages. Applications install the packages they need, at the versions they choose. Each package has a public interface and its own version.
+This repository does not own any one application, and it does not assemble a runnable starter. App-Template does that. An application owns its own behaviour.
 
-The packages that exist today are:
+## Three kinds of pattern
 
-- `@app-framework/app-config` — typed environment values, with server-only values kept apart from browser-safe values.
-- `@app-framework/dev-tools` — `framework-check`, which reports newer published framework packages. It does not install or upgrade them.
-- `@app-framework/ui` — the frontend module. It registers `af-*` custom elements and styles them by tag name.
+**Reusable packages** are shared programs distributed as versioned npm dependencies. The packages that exist are `@app-framework/ui`, `@app-framework/app-config`, and `@app-framework/dev-tools`. An application installs the ones it uses and chooses the versions. Publishing a version does not change an application that already installed an older one.
 
-`@app-framework/ui` is a core install for App-Template. Config and the version check are available on their own. None of these packages imports the others.
+**Centrally managed standards and workflows** are shared solutions that are not npm packages. The ones that exist are the development conventions in `standards/cursor`, copied by `scripts/sync-cursor-standards.mjs`, and the reusable static deployment workflow. An application commits the synced rules and a version pin, or a GitHub Actions caller pinned to a tag. The canonical text stays here. The application does not keep a second deploy script.
 
-## What it is not
+**Documented candidates** are requirements with no validated central implementation yet. They are a roadmap. A catalogue entry is not a promise to build that pattern, and it is not something an application can install.
 
-This repository is not a website, an application, or an application template. It is not a host or a deployment system. It does not hold one product's business rules. It does not replace an existing framework, library, or service. It does not install, select, or upgrade modules for an application.
+The inventory is [`REUSABLE_PATTERNS_CATALOGUE.md`](../REUSABLE_PATTERNS_CATALOGUE.md).
 
-## What belongs here
+## What this repository is not
 
-Shared behaviour that more than one application would otherwise copy, with a small public interface.
-
-That includes the packages above. It also includes the architectural standards and the capability catalogue.
-
-A future `@app-framework/database` package may wrap an established database client and the connection setup applications would otherwise copy. It will not be an ORM or a database engine. It will not be added until two applications would otherwise copy that setup.
-
-Further `af-*` elements belong in `@app-framework/ui` when an application needs them: tab bars, accordions, graphs, calendars, modals, mobile menus, routing and navigation, and animation. Element state stays on attributes, properties, and events. A shared state container is not added before a screen needs one.
+It is not a website, a landing page, or an application template. It is not a host, and it does not choose a provider. It does not hold one product's business rules. It does not replace Next.js, GitHub Actions, Cursor, or another established tool. It does not install or upgrade an application's dependencies.
 
 ## What belongs in App-Template
 
-App-Template is the bootable starter. It owns project setup, the landing page, hosting, and deployment configuration. It installs the framework packages the starter uses, including `@app-framework/ui`, and wires them into the running app. It does not redefine those packages.
+App-Template is the bootable starter. It owns project setup, the landing page, this starter's configuration values, per-application secrets, and the deploy caller. Until `deploy-static-v1` exists, that caller is the working workflow in the template. It installs the published framework packages the starter uses. It does not redefine those packages.
 
 ## What belongs in an application
 
-Behaviour that is specific to one product: its screens, its data, its business rules, and its choice of which optional framework packages to install. An application pins package versions itself. Publishing a new framework version does not change installed applications.
+Behaviour that is specific to one product: its screens, its data, its business rules, and its choice of which optional patterns to adopt. The application pins package versions, commits a standards sync, and chooses the deployment workflow tag.
 
-## How applications depend on packages
+## How an application adopts an update
 
-Install only the packages the application uses:
-
-```bash
-pnpm add @app-framework/ui
-pnpm add @app-framework/app-config
-pnpm add -D @app-framework/dev-tools
-```
-
-Import the public entry. For the interface, also load `@app-framework/ui/styles.css` and call `defineAppElements()`. Do not import another framework package through these entries, and do not depend on this git repository.
-
-## Not implemented yet
-
-These stay documented until an application requires them:
-
-- Visitor identity, user accounts, and permissions
-- Payments and invoicing
-- Realtime communication and notifications
-- Background jobs and file storage
-- External integrations and offline synchronisation
-- Analytics and developer diagnostics
-- Database access
-- Tab bars, accordions, graphs, calendars, modals, mobile menus, routing, and animation
+- A package update is a version change in that application's manifest and lockfile. `framework-check` reports newer published framework packages and does not edit those files.
+- A convention update arrives when the application reruns the sync script at a new `standards/cursor` version and commits the result. Existing source stays as it is until someone edits it.
+- A static deployment update arrives when the caller moves to a new workflow tag. The application does not copy the workflow. App-Template keeps its current deploy workflow until the tag `deploy-static-v1` exists.
+- A documented candidate has nothing to adopt until it becomes a package or a standard.

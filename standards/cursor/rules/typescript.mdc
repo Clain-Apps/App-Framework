@@ -1,0 +1,20 @@
+---
+description: TypeScript defaults for exported functions and untrusted values
+globs: "**/*.ts,**/*.tsx,**/*.mts,**/*.cts"
+alwaysApply: false
+---
+
+# TypeScript
+
+- Give an exported function an explicit return type.
+- Prefer `unknown` in a `catch` binding, then narrow it. Do not use `any`.
+- A value that crosses a boundary (environment, request, file) is validated before the rest of the program trusts it.
+- Model a closed set as a union of string literals, not an open `string`, when the callers must handle every case.
+- Do not silence the compiler with a cast when a guard or a narrower type will do. A cast at a boundary needs a comment that says what was checked.
+
+```ts
+export function timeoutMs(value: unknown): number {
+  if (typeof value !== "number" || value <= 0) throw new Error("Timeout must be a positive number.");
+  return value;
+}
+```

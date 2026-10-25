@@ -1,0 +1,12 @@
+---
+description: How to place a new module so ownership stays obvious
+alwaysApply: false
+---
+
+# Code organisation
+
+- Put a module in the package or application folder that owns the behaviour. Do not add a `utils` or `helpers` folder for unrelated functions.
+- One module, one reason to change. Split a file when a second responsibility appears, not before.
+- Keep the public entry small. Callers import that entry, not a file buried under `src` or `dist`.
+- Shared code earns a shared module only when a second caller needs the same behaviour. Until then it stays next to its only caller.
+- Generated output (`dist`, `out`, coverage) is not source. Do not edit it and do not import it from source.

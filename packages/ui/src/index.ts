@@ -13,6 +13,7 @@ export const appElementTags = {
 } as const;
 
 export function defineAppElements(): void {
+  if (typeof customElements === "undefined") return;
   define(appElementTags.theme, ThemeElement);
   define(appElementTags.heading, HeadingElement);
   define(appElementTags.panel, PanelElement);

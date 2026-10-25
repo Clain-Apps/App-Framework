@@ -1,0 +1,18 @@
+---
+description: Keep interface, domain, and infrastructure code in separate modules
+alwaysApply: false
+---
+
+# Separation of concerns
+
+- A module that renders or parses input does not also open a database, a network client, or a file of secrets.
+- Domain rules accept already validated values. Validation sits at the boundary that receives the input.
+- Infrastructure adapters (clients, queues, the filesystem) hide the vendor API behind a function the domain can call.
+- Do not import a host framework into a module whose job is shared behaviour.
+- Application-specific rules stay in the application. Do not push them into a shared module to avoid a local edit.
+
+```ts
+function assertReady(release: { indexHtml: string }): void {
+  if (release.indexHtml.length === 0) throw new Error("Release has no index.");
+}
+```

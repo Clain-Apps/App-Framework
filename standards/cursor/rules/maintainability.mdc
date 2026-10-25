@@ -1,0 +1,12 @@
+---
+description: Keep a change small enough that the next edit is obvious
+alwaysApply: false
+---
+
+# Maintainability
+
+- Change the smallest surface that fixes the behaviour. Do not refactor neighbours in the same change.
+- Delete code that no caller uses. Do not leave a parameter, branch, or export "for later".
+- A comment says why a non-obvious constraint exists. It does not repeat the code.
+- Prefer a direct function over a new abstraction that has one caller.
+- A breaking change to a shared contract needs a new version and a note that says what the caller must change. Do not change a caller's meaning in place.

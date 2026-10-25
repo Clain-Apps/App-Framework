@@ -1,202 +1,1006 @@
-# Reusable Patterns Catalogue
+# Reusable patterns catalogue
 
-**Purpose:** Maintain one inventory of recurring application needs, the *canonical place* where each solution or standard is maintained, how applications receive improvements, and what remains undecided. The goal is to solve common work once without building an unnecessary platform.
+This is the only catalogue of recurring application patterns. App-Template and individual applications link here. They do not keep a copy.
 
-**Proposed home:** `App-Framework/docs/REUSABLE_PATTERNS.md` (the catalogue is owned centrally). `App-Template` should link to it and use it during project setup; individual apps should not maintain independent copies of this catalogue.
+A documented pattern is not an implemented capability. Status describes the central artifact in this repository:
 
-**Status:** Architecture proposal, informed by existing apps and prior Cursor reports; **not** a claim that the listed integrations or central distribution mechanisms already work.
+- **implemented** — the canonical file or package is in this repository.
+- **proposed** — a central home is identified, and the artifact is not ready to adopt.
+- **deferred** — kept on the roadmap. This is not a commitment to build it.
 
-## How to read this catalogue
+Category is where that artifact would live:
 
-There are **three exclusive ownership categories**:
+- **package** — a versioned npm package.
+- **standard** — a workflow, convention, or policy maintained here and consumed by reference. Not an npm package.
+- **candidate** — no validated central implementation yet.
 
-1. **Framework package** — versioned reusable implementation distributed through a package registry, ordinarily an npm package from App Framework.
-2. **Externally managed standard/service** — its canonical source is a shared workflow, configuration, rule distribution, provider console, policy, or infrastructure repository, **not** an application runtime package. Some definitions can still live alongside App Framework, but their delivery mechanism is not npm.
-3. **Candidate / decision record** — a recurring concern with a documented strategy or checklist, but **no validated shared implementation or distribution choice yet**. It can later graduate into category 1 or 2.
+Use is **core** when every application should consider it, and **optional** when only some products need it. Priority is **now**, **next**, or **later**. Publishing a package, syncing a standards version, or moving a workflow tag does not change an existing application by itself.
 
-These categories describe **where the single authoritative solution lives**, not whether a concern is important. Separately:
+## Packages
 
-- **Use:** `Baseline` = every new app needs the convention/check; `Conditional` = only apps with that requirement.
-- **Priority:** `Now` = verify as part of App Hub experiment; `Next` = demonstrated likely reuse; `Later` = retain on roadmap only.
-- **State:** `Reported` = Cursor described code, not independently verified here; `Proposed` = design only; `Unverified` = needs investigation.
+### UI primitives and design tokens
 
-**Important:** A standard may be baseline even if its implementation is optional. The template establishes baseline conventions; applications select conditional capabilities. Some legal/security requirements must be assessed independently for each product and cannot be made compliant simply by installing code.
+- Purpose: Tag-styled `af-theme`, `af-heading`, and `af-panel`, plus spacing, measure, type, and colour custom properties. Product branding stays in the application. Tabs, accordions, graphs, calendars, modals, menus, routing, and animation are not in this package.
+- Category: package
+- Location: `packages/ui` (`@app-framework/ui` and `@app-framework/ui/styles.css`)
+- Status: implemented
+- Use: core
+- Priority: now
+- Adoption: After a confirmed scope is published, bump the version and lockfile, then test. Until then there is no registry release to adopt. Upgrading does not rewrite existing screens.
+- Dependencies: none
 
-## Category 1 — Versioned framework packages
+### Application configuration
 
-Packages encapsulate **reusable code or configuration with stable import/CLI interfaces**. Applications explicitly declare versions and update their lockfiles after testing. Never recreate Next.js, GitHub Actions, Cursor or other established tools as custom packages.
+- Purpose: Typed environment values, with server-only values kept out of browser-safe output. Empty strings are missing. This is not a secrets manager and it does not define an application's API.
+- Category: package
+- Location: `packages/config` (`@app-framework/app-config`)
+- Status: implemented
+- Use: core
+- Priority: now
+- Adoption: After publication, bump the version and lockfile. Call `loadPublicConfig` from browser code.
+- Dependencies: none
 
-| Pattern / capability | Standard generic solution / boundary | Use | Priority | Canonical home and update route | Evidence / likely consumers | State |
-|---|---|---|---|---|---|---|
-| **UI primitives & design tokens** | Base typography, spacing, colour, surfaces and reusable accessible components (navigation, panel, grid, button, date picker). App-specific branding remains local. | Baseline | **Now** | `App-Framework/packages/ui` → versioned `@app-framework/ui` → package update | All new apps; App Hub proves change propagation | **Reported:** existing `af-theme`, `af-heading`, `af-panel`; requested controls not verified |
-| **Application configuration helper** | Typed environment/public configuration and defaults; no credentials in client output. | Baseline | **Now** | `packages/app-config` → `@app-framework/app-config` | App Template uses it | **Reported:** package exists locally; registry publication not verified |
-| **Framework update checker** | Show package versions and available stable releases; never silently alter apps. This is tooling, not a substitute for pnpm. | Baseline | **Now** | `packages/dev-tools` → `@app-framework/dev-tools` CLI | App Template `framework-check` | **Reported:** locally developed; registry publishing not verified |
-| **Shared lint / TypeScript / formatting presets** | Versionable configuration for project checks when genuinely duplicated; template selects presets. Avoid hiding major per-app compiler constraints. | Baseline | Next | Possible `@app-framework/config-*` package(s) | All TypeScript applications | Proposed; initially template files suffice |
-| **Database integration** | Standard connection lifecycle, validation, migrations and diagnostics using an established library; adapter for chosen database; **app schema and data remain app-owned**. | Conditional | Next | Future `@app-framework/database` or database-specific adapter(s) | PoolComp (MongoDB), Personal Quiz (Firebase), Demand Identifier, App Hub if needed | Proposed; don't force unlike databases into one ORM |
-| **Identity & access** | Provider-backed sign-in, sessions, optional SSO and secure authorization utilities; account profiles, roles and tenancy as configurations/extensions. | Conditional | Next | Future `@app-framework/identity` | Personal Quiz; private Demand Identifier; potential PoolComp, War Theatre | Proposed; never hand-roll credentials/cryptography |
-| **Billing (payments + invoicing)** | One user-facing capability covering invoices, payment links/checkout, receipts, payment status, refunds and reconciliation; internal submodules can stay separate. Provider manages sensitive card collection. | Conditional | Next | Future `@app-framework/billing` | Invoice Payment Service, future PoolComp fees | Proposed; accounting/provider adapters as needed |
-| **AI integration** | Provider clients, structured outputs, tool calls, streaming, usage limits and prompt/version hooks; app-specific reasoning stays in each app. | Conditional | **Next (high)** | Future `@app-framework/ai` | War Theatre, Auto-Debater, Demand Identifier, IntTrader, prior client use | Proposed; strong reuse case |
-| **Realtime transport** | Typed messages, connection lifecycle, reconnect, subscriptions and server events; no game rules. | Conditional | Next | Future `@app-framework/realtime` | PoolComp, Auto-Debater, GameHost, Gambit, War Theatre | Proposed; extract from working implementations |
-| **Background jobs** | Schedules, queues, retries, idempotency and job observability; use established scheduler/queue. | Conditional | Next | Future `@app-framework/jobs` | Demand Identifier, IntTrader, AI workflows | Proposed |
-| **Web data acquisition** | Fetch policies, per-source adapters, timestamps, provenance, deduplication, error handling and lawful access; analysis remains app-specific. | Conditional | Next | Future `@app-framework/data-collection` | Demand Identifier, IntTrader, Auto-Debater research | Proposed |
-| **File & media storage** | Secure upload validation, storage adapters, retrieval, cleanup and optional image processing; no arbitrary public upload defaults. | Conditional | Later | Future `@app-framework/storage` | Auto-Debater recordings, future apps | Proposed |
-| **Notifications & messaging** | Delivery adapters (email, push, SMS, in-app), templates, queueing and delivery status. | Conditional | Later | Future `@app-framework/notifications` | Billing receipts, PoolComp alerts, Demand Identifier | Proposed |
-| **Client offline sync** | Local store, queued mutations, sync cursors and conflict handling; only when product needs offline editing. | Conditional | Later | Future `@app-framework/offline-sync` | PoolComp or mobile tools | Proposed |
-| **Analytics instrumentation** | Reusable event interfaces, consent-safe instrumentation hooks and observability adapters; each app defines meaningful KPIs. | Conditional | Later | Future `@app-framework/analytics` | Demand Identifier, IntTrader, App Hub, PoolComp | Proposed |
-| **Game Host** | Multiplayer lobbies, participants, presence and game session lifecycle; transport/identity integrations when needed. No combat or game rules. | Conditional | **Later** | Future `@app-framework/game-host` | Existing GameHost and Gambit code; future War Theatre | Proposed extraction; don't copy unreviewed code |
-| **Synchronised Start / Playback** | Measure RTT/jitter, estimate clock offset, distribute absolute server-time start, handle lateness; not a guarantee of exact simultaneity. | Conditional | **Later** | Future `@app-framework/synchronised-start` | Gambit, potential other multiplayer games | Proposed |
-| **Audio / speech** | Audio capture/streaming, transcription adapter and optional speaker segmentation; debate analysis stays app-specific. | Conditional | Later | Future `@app-framework/audio` | Auto-Debater | Proposed; likely defer until 2nd consumer |
+### Framework update checker
 
-**Package design rule:** Keep public APIs narrow; prefer established libraries/provider adapters; extract after genuine reuse. A package's dependencies should be acyclic. Billing may be **one selectable capability** without separate compulsory invoice↔payments package cycles.
+- Purpose: Compare installed framework packages with the latest stable npm versions, including a required package that is absent. Compatible and major updates are reported separately. The command never edits dependency files, and it does not track conventions or workflows.
+- Category: package
+- Location: `packages/dev-tools` (`@app-framework/dev-tools`, command `framework-check`)
+- Status: implemented
+- Use: core
+- Priority: now
+- Adoption: After publication, bump the dev dependency. Run the command to see the report. Installing the new version remains a commit in the application.
+- Dependencies: `semver`
 
-## Category 2 — Central standards, workflows, tools and infrastructure (not app runtime packages)
+### Lint and TypeScript presets
 
-Applications should hold **thin pointers/configuration** to shared definitions wherever practical. These are the recurring patterns most likely to be accidentally frozen into a copied template.
+- Purpose: Share lint, TypeScript, and formatting configuration when the same preset is being copied. A template file is enough until that copy exists.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: None until a package is published. Do not hide an application's compiler constraints inside a preset.
+- Dependencies: none
 
-| Pattern / concern | Canonical management location / strategy | How existing apps get changes | Use | Priority | State |
-|---|---|---|---|---|---|
-| **Technology baseline** | `App-Template` starter manifest: Next.js, TS, Node, pnpm and supported versions | New apps inherit; existing apps get controlled dependency updates or migration PRs | Baseline | Now | Reported Next.js starter |
-| **Repository structure / naming** | Template folder layout + central architecture rules; keep application-specific modules in app | New apps inherit; existing apps need structural codemod/migration if necessary | Baseline | Now | Reported template structure |
-| **Cursor / AI coding rules** | Version-controlled canonical rule set, distributed via supported Cursor mechanism, symlink/sync or plugin; local project-specific rules remain local | Rules version/sync update; doesn't rewrite old code | Baseline | **Now** | Proposed distribution; PoolComp has useful starting rules |
-| **AI agent guidance & permissions** | Shared `AGENTS.md` policy and selected Cursor rules; app-specific instructions beside app | Shared guidance update/sync; scoped override | Baseline | Next | Reported template rules; shared distribution unverified |
-| **CI pipeline** | Reusable GitHub Actions workflow with `workflow_call` (or referenced shared action) | Consumer job points to released workflow; version/tag updated intentionally | Baseline | **Now** | Existing copied CI reported; reusable workflow not confirmed |
-| **Deployment pipeline** | Reusable GitHub Actions workflow(s), initially static; later separate Node/server profile | Thin app workflow calls shared release; centrally improved logic | Baseline | **Now** | Reported static pipeline in template; shared reusable workflow unverified |
-| **Secrets & deploy access** | GitHub environments/secrets, server access policy, least-privilege deploy account; each app's values isolated | Policy and reusable workflow update; credentials remain per-app/environment | Baseline | Now | Server configuration not validated |
-| **Server provisioning, HTTPS, routing** | Infrastructure-as-code or server configuration repo (potentially separate from App Framework), reverse proxy, TLS, process manager | Apply reviewed infrastructure changes centrally; apps supply domain/runtime metadata | Conditional | Next | Proposed; deploy artifacts alone don't serve a site |
-| **Git practices & repository access** | GitHub repository templates, permissions, branch protections/rulesets, code ownership and review policy | Organisation/repository settings automation where supported; per-repo permissions remain scoped | Baseline | Next | Proposed |
-| **Dependency update & vulnerability policy** | Renovate/Dependabot configuration preset + registry/dependency review; release policy | Bot-created per-app PRs; tests gate adoption | Baseline | Next | Proposed |
-| **Quality checks / pre-commit** | Template hook bootstrap + centrally versioned config where worthwhile; quick checks locally, complete checks in CI | Central config / workflow updates; hook bootstrap changes may need migration | Baseline | Now | Reported local check scripts |
-| **Automated test policy** | Shared CI test matrix and test conventions; actual tests live with application | Central workflow updates; app tests always remain app-owned | Baseline | Next | Test infrastructure reported |
-| **Development scripts / local bootstrap** | App Template scripts (`dev`, `check`, `build`, etc.), ideally thin calls to stable tools | Template for new apps; script migrations or common tool updates for old apps | Baseline | Now | Reported scripts |
-| **Release, versions, rollback** | GitHub workflow + release versioning convention, artifact naming, compatibility check and rollback documentation | Reusable workflow updates; lockfile/package changes controlled | Baseline | Now | Static release layout reported |
-| **Documentation structure** | Template README, architecture decision records, contribution docs and link to this catalogue; app descriptions stay app-owned | New apps inherit; policy update linked centrally; doc structure migrations as needed | Baseline | Now | Reported responsibility documents |
-| **Developer test state** | Shared seed/mock conventions documented centrally; fixture scripts remain application-specific unless reused | Referenced playbook; optionally package a tested helper later | Conditional | Next | Proposed |
-| **Security baseline** | Central secure-development standard and checklists (TLS, validation, access, headers, secure secrets, supply chain, incident response) | Central checklist/workflow; app implementation and audit required | Baseline | Next | Proposed |
-| **Accessibility / inclusive design standard** | Shared accessibility policy and component-level tests; keyboard, semantics, contrast, reduced motion, screen readers | UI package changes + app-level accessibility checks; never disable semantic attributes | Baseline | Next | Proposed |
-| **Responsive / device compatibility policy** | Breakpoint and interaction guidelines centrally; UI package implements primitives; test matrix in CI/manual QA | Style package updates plus app-specific regression testing | Baseline | Next | Proposed |
-| **Branding and UX modes** | Design guidance for customer-discovery vs operational-product interfaces; framework UI themes where repeatable | Shared design tokens / reference guidance; each app controls experience | Conditional | Next | Proposed |
-| **Observability infrastructure** | VPS/system monitoring, log aggregation, uptime checks and alert routing | Central service/policy change; apps expose documented health/log interfaces | Baseline | Next | Proposed |
-| **Backups & restore procedure** | Infrastructure backup schedules, encryption, retention and restore drills; each dataset has own policy | Centrally managed schedules/runbooks; verify app-specific restores | Conditional | Next | Proposed |
-| **Legal / compliance review** | Shared pre-launch checklist and decision log, covering privacy, terms, consumer law, data retention, licences, age and identity requirements | Central policy/checklist; per-product and jurisdiction-specific assessment | Baseline | Next | Proposed; no universal compliance package |
-| **IP / licensing / third-party assurance** | Shared business/legal checklist: ownership, contractor agreements, trademarks, dependency licences, verified claims/certifications | Policy/document updates; actual assessment is individual | Conditional | Later | Proposed |
-| **App onboarding / capability selection** | App Template's optional guided CLI/checklist, reading this catalogue or a machine-readable derivative | New app setup only; existing app can rerun diagnostics, but no automatic migrations | Baseline | **Later** | Proposed, **do not implement wizard yet** |
+### Database integration
 
-**Ownership nuance:** The catalogue may live in App Framework, but a policy being *listed there* does not mean its executable canonical source must be in an npm package or that every secret/settings value should be shared. The app template is the assembler and reference point, **not** the continuing owner of copied configurations.
+- Purpose: Connection lifecycle, validation, migrations, and diagnostics around an established database client. Schema and data stay in the application. This will not be an ORM or a database engine, and unlike databases do not share one package.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists. Add it only when two applications would otherwise copy the same client setup.
+- Dependencies: an established database client chosen by the application
 
-## Category 3 — Unverified patterns and decision placeholders
+### Identity and access
 
-These are intentionally retained so the original comprehensive list is not lost. Do **not** build implementations simply to make the catalogue complete. For each, identify the trigger, principle, likely owner and future delivery mechanism before prioritising.
+- Purpose: Provider-backed sign-in, sessions, and authorization helpers. Account profiles and roles are configuration. Do not hand-roll credentials or cryptography.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists.
+- Dependencies: an identity provider
 
-| Pattern / decision | Default principle / decision to make when needed | Likely eventual owner / delivery | Use | Priority |
-|---|---|---|---|---|
-| **Domain modelling** | Keep entities and invariants beside app business logic; promote only generic methods used by 2+ apps | Shared policy; specific domain code in app | Baseline | Later |
-| **Separation of concerns & module extraction** | Keep interface, domain, persistence and infrastructure boundaries clear; resist premature extraction | Shared architecture guidance | Baseline | Next |
-| **API design / versioning** | Pick APIs appropriate to app; validate input, paginate, handle deprecation/compatibility | API policy + possible client helpers | Conditional | Later |
-| **Event-driven design** | Begin with simple typed events; queue only when retries/durability justify it | App design + future package | Conditional | Later |
-| **Scale / caching / load distribution** | Measure bottlenecks first; explicit cache invalidation and concurrency policy | App-specific architecture; future utilities | Conditional | Later |
-| **Database selection / data relationships** | Choose provider according to workloads; relational schema where useful; don't assume every app can use the same engine | Architecture decision + provider; adapter later | Conditional | Next |
-| **Migrations / transactions / integrity** | Version data changes, test rollback/forward compatibility, enforce constraints, account for idempotency | Database tool + app migrations | Conditional | Next |
-| **Multi-tenancy** | Tenant isolation must be enforced server-side; role and data model designed together | Identity + database or app architecture | Conditional | Later |
-| **Data retention / export / portability** | Define deletion, archive, backup, restore and export obligations per dataset | Legal/data checklist + app code | Conditional | Later |
-| **Search and indexing** | Use basic SQL filters/full-text first; add search provider only if necessary | Future package or service | Conditional | Later |
-| **Feature flags** | Adopt flags only when releases/experiments need them; avoid permanent complexity | Future small package/provider | Conditional | Later |
-| **User journeys, registration and profile UX** | Reuse identity flows where secure; only app-specific onboarding varies | Identity package + UI patterns | Conditional | Next |
-| **Age assurance and formal ID checks** | Enable only when legally/contractually appropriate; minimise sensitive data | Specialist provider + compliance decision | Conditional | Later |
-| **Abuse prevention & audit trail** | Rate limits, spam controls, security event audit; define risk thresholds | App infra + potential middleware | Conditional | Next |
-| **Third-party compliance/security certification** | Make only independently substantiated trust claims; arrange audit when warranted | External assessor, policy | Conditional | Later |
-| **Content management & moderation** | Publishing, revisions, approvals and moderation only if app requires it | Provider or future package | Conditional | Later |
-| **Navigation / deep links / technical SEO** | Route semantics, metadata, canonical, sitemap and rendering depend on public/private page | Next.js template policy + app implementation | Conditional | Next |
-| **Landing page and conversion funnel** | Audience-first call to action, progressive disclosure, branding and trust signals; no one-size-fits-all marketing UI | UI patterns + app content | Conditional | Later |
-| **Search analytics & migration redirects** | Preserve URLs and track organic performance when replacing existing public sites | App SEO checklist + provider tools | Conditional | Later |
-| **Internationalisation / locale / currencies** | Use standard formatting and date/time zone APIs; RTL and translation where requested | UI helpers, app locale config | Conditional | Later |
-| **Tables, charts, calendars and advanced widgets** | Introduce through shared UI package only once demanded; preserve accessibility | Framework UI package | Conditional | Later |
-| **Feedback / error / loading patterns** | Consistent states and accessible feedback; classify reusable primitives vs domain-specific errors | UI package + app logic | Baseline | Next |
-| **Collaboration & shared editing** | Clarify consistency, ownership and conflict resolution before selecting CRDT/locks | Potential realtime extension | Conditional | Later |
-| **Scheduling / booking / reminders** | Distinguish business bookings from background job scheduling | Future domain package | Conditional | Later |
-| **Maps / geospatial** | Prefer provider integration and app-specific geospatial policy | Future adapter + app logic | Conditional | Later |
-| **Provider integrations and webhooks** | Stable adapters, idempotency, retries, signature validation and secret isolation | Future integration package(s) | Conditional | Next |
-| **Analytics/KPI definitions & meta-analytics** | Instrument only with purpose, consent and data quality checks; distinguish observation from inference | Analytics standards + app KPI logic | Conditional | Later |
-| **A/B testing & rollouts** | Adopt only when volume and decision quality justify experiments | Analytics service / feature flags | Conditional | Later |
-| **Monitoring and incident response** | Define alert ownership, response steps, recovery objectives | Operations policy / monitoring service | Baseline | Next |
-| **Manual/browser/device/performance/security QA** | Risk-based test matrix and smoke tests, beyond purely automated unit tests | Shared QA checklist + CI | Baseline | Next |
-| **Customer support, feedback, roadmap** | Keep standard pathways for help, issues and triage, but content belongs to product | Template doc pattern + external provider | Conditional | Later |
-| **App lifecycle/offboarding** | Export user data, revoke secrets and retire DNS/infrastructure deliberately | Central lifecycle checklist | Conditional | Later |
-| **Cost controls / capacity planning** | Monitor hosting/API spend, set budgets and scale only after usage evidence | Shared runbook + provider alerts | Conditional | Next |
+### Billing
 
-## Rules for moving items between categories
+- Purpose: Invoices, payment links, receipts, payment status, refunds, and reconciliation as one selectable capability. The provider collects card data.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists.
+- Dependencies: a payment provider
 
-1. **Identify a second real use case** (or a very strong first one) and describe the repeated behaviour rather than implementation details.
-2. Decide whether the canonical thing is **reusable code**, a **shared workflow/configuration/service**, or merely a **policy/decision**.
-3. Record the authoritative location (repository/path/service), consuming apps, an owner, dependencies and release/update mechanism.
-4. Make the smallest implementation and verify it from a clean consuming application, not just inside its source workspace.
-5. Define the update path for **existing** apps (package bump, pinned workflow update, rules sync, migration PR, provider-side change).
-6. Keep application overrides, credentials, database schemas and product-specific business logic in the app unless truly generalisable.
-7. Mark a pattern as implemented **only after** the central source and one consumer pass an end-to-end test.
+### AI integration
 
-## How a new app should consume the catalogue
+- Purpose: Provider clients, structured outputs, tool calls, streaming, usage limits, and prompt hooks. Reasoning that is specific to one product stays in that application.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists.
+- Dependencies: an AI provider
 
-**Now: a lightweight checklist, not a wizard.** App Template's README should link here and include a short capability-selection checklist. It ships standard Next.js scaffolding, project checks, thin workflow callers and known working framework dependencies. On creation, the developer:
+### Realtime transport
 
-1. Creates the app from App Template.
-2. Chooses deployment profile: **static** or **server-backed** (server-backed must remain unsupported/unchecked until built).
-3. Selects optional capabilities: database, identity, billing, AI, realtime, jobs, etc. Only currently released modules are installable; pending capabilities link to their design checklist.
-4. Supplies per-app provider configuration, domain and access permissions through the documented secure setup.
-5. Runs install, checks, deploy validation and verifies that shared update mechanisms are active.
+- Purpose: Typed messages, connection lifecycle, reconnect, subscriptions, and server events. Game rules stay in the application.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists. Extract it from a working application rather than designing it in isolation.
+- Dependencies: none
 
-**Later: an optional CLI wizard**, only after this manual process has been repeated enough to justify automation. It should read a **versioned capability manifest derived from the catalogue**, show required vs optional dependencies, install released packages, produce a per-app `capabilities` declaration or setup checklist, and create action-specific instructions. It must not silently provision secrets, change server permissions or pretend to implement placeholder features.
+### Background jobs
 
-Possible app-level tracking (illustrative, not a new dependency manager):
+- Purpose: Schedules, queues, retries, idempotency, and job visibility, using an established scheduler or queue.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists.
+- Dependencies: an established scheduler or queue
 
-```json
-{
-  "deploymentProfile": "static",
-  "capabilities": {
-    "ui": "installed",
-    "ai": "not-needed",
-    "identity": "planned",
-    "billing": "not-needed"
-  }
-}
-```
+### Web data acquisition
 
-**Avoid duplicate state:** Actual installed package versions live in `package.json` and its lockfile; GitHub workflow revisions live in the calling YAML; runtime configuration is validated by its respective tool. A capability manifest is a **human-readable record of decisions**, not a competing package database.
+- Purpose: Fetch policy, per-source adapters, timestamps, provenance, deduplication, and errors. Analysis stays in the application. Collection has to be lawful for the source.
+- Category: package
+- Location: no package yet
+- Status: proposed
+- Use: optional
+- Priority: next
+- Adoption: None until a package exists.
+- Dependencies: none
 
-## Where to make future changes
+### File and media storage
 
-| Change request | Edit the single source of truth | How App Hub / other apps adopt it |
-|---|---|---|
-| Default font or panel spacing | `@app-framework/ui` | Publish → update package + lockfile → test and deploy |
-| Database connection bug | Relevant framework database adapter | Publish → update package → run migrations/tests if relevant |
-| Global Cursor naming rule | Version-controlled shared rules source | Sync/update installed rules; future AI edits follow them; old code needs explicit refactor |
-| GitHub static deploy bug | Shared reusable workflow | Update released workflow reference or centrally maintained version, test deployment |
-| Node hosting strategy | Separate server deployment profile + infrastructure source | Opt into server profile; migrate app only when necessary |
-| Security/legal rule | Canonical policy/checklist | Reassess affected apps and perform needed changes; no false claim of automatic compliance |
-| Next.js version or repo architecture | Template for new apps + documented migration | Dependency PR / codemod for existing apps; no magical synchronisation of copied files |
+- Purpose: Upload validation, storage adapters, retrieval, and cleanup. Public upload is not the default.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None. Build it only after a second consumer needs the same upload path.
+- Dependencies: a storage provider
 
-## Small immediate milestone — App Hub proof
+### Notifications and messaging
 
-**Do not build the wizard or new capabilities first.** Prove three pathways:
+- Purpose: Delivery adapters, templates, queueing, and delivery status for email, push, SMS, or in-app messages.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None until a package exists.
+- Dependencies: a delivery provider
 
-- **Package:** publish an updated UI token/component and see App Hub inherit it through a tested package update.
-- **Shared workflow:** change central GitHub Actions deployment logic and verify App Hub's thin caller adopts the released update without duplicating the workflow.
-- **Shared rules:** improve one central Cursor rule and verify the app obtains the new rule via the chosen distribution method; document that old source code is unchanged until refactored.
+### Client offline sync
 
-**Then** decide whether a central installer, rules packaging and capability dependency UI would actually save work.
+- Purpose: A local store, queued mutations, sync cursors, and conflict handling for products that must edit while offline.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None until a product requires offline editing.
+- Dependencies: none
 
-## Coverage index back to the original full taxonomy
+### Analytics instrumentation
 
-- **A. Software architecture and engineering:** baseline tech, structure, code conventions, configuration, APIs, events, compatibility, scaling, modularity.
-- **B. Developer and AI-assisted development:** bootstrap, IDE/Cursor/AGENTS, tooling, checks, testing data, debugging, onboarding and agent governance.
-- **C. Data management:** database selection/access, migrations, transactions, tenants, local storage, offline sync, backups, lifecycle, search, portability.
-- **D. Identity:** registration, sessions, login/SSO/MFA, permissions, profiles, teams, age/ID, security logging.
-- **E. Security, privacy and trust:** baseline secure coding, transport, secrets, supply chain, vulnerability management, abuse, incident response, assurance, recovery.
-- **F. UI, usability and design:** tokens, primitives, responsive accessibility, reduced motion, localisation, customer/operational UX, navigation and feedback.
-- **G. Shared product capabilities:** billing, notifications, realtime, jobs, files/media, CMS, collaboration, location, scheduling, AI, integrations, game sessions and synchronised start.
-- **H. Testing:** unit, integration, contracts, end-to-end, visual, accessibility, cross-platform, performance, security, regression and release verification.
-- **I. Infrastructure and operations:** artifact builds, CI/CD, environments, provisioning, access, release/rollback, networking, processes, persistent storage, scheduled tasks, DR, cost controls.
-- **J. Observability and analytics:** metrics, logging, tracing, errors, product/business KPIs, experiments, alerts and analytics governance.
-- **K. Public web and SEO:** rendering, crawlers, canonical/meta, URLs, structured data, search discoverability, speed, landing pages, conversion, SEO migration.
-- **L. Legal and governance:** privacy, terms, consumer, payments/tax, age/identity, accessibility, IP/licences, contracting, records and sector/jurisdiction review.
-- **M. Documentation and product lifecycle:** product/developer/API docs, runbooks, decisions, release notes, support, issue tracking, version migrations, shutdown.
+- Purpose: Consent-aware event hooks and provider adapters. Each application chooses the events that matter. Observation is not inference.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None until a package exists.
+- Dependencies: an analytics provider, when one is chosen
 
-*Maintenance principle: keep this single catalogue comprehensive, while keeping the implementation roadmap deliberately small.*
+### Game host
+
+- Purpose: Lobbies, participants, presence, and session lifecycle for more than one game. Combat and game rules stay in the game.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None. Do not copy an unreviewed game into a package.
+- Dependencies: none until a real extraction needs transport or identity
+
+### Synchronised start
+
+- Purpose: Estimate clock offset from delay and jitter, then share an absolute server time for a coordinated start. This does not promise exact simultaneity.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None until a second multiplayer product needs it.
+- Dependencies: none
+
+### Audio and speech
+
+- Purpose: Capture, streaming, a transcription adapter, and optional speaker segmentation. Product-specific analysis stays in the application.
+- Category: package
+- Location: no package yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None until a second consumer needs the same audio path.
+- Dependencies: a transcription provider
+
+## Standards and workflows
+
+### Development conventions
+
+- Purpose: Shared guidance for naming, separation of concerns, TypeScript, code organisation, testing, and maintainability. Project-specific architecture stays in each application.
+- Category: standard
+- Location: `standards/cursor/` (`version.json` and `rules/`), copied by `scripts/sync-cursor-standards.mjs`
+- Status: implemented
+- Use: core
+- Priority: now
+- Adoption: Run the sync script against the application and commit `.cursor/rules/framework/` plus `.cursor/framework-standards.json`. A later version is a bump of `version.json`, a rerun, and a commit. The sync does not rewrite application source. `framework-check` does not report this version.
+- Dependencies: the sync script. Not an npm package and not a remote Cursor rule import.
+
+### Static deployment
+
+- Purpose: Publish a caller-supplied static directory, refuse a root account and environment files, switch the `current` symlink, and point `current` back at `previous` on rollback. The caller supplies the Node version file, install command, build command, output directory, and entry file. The Next.js profile passes `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`.
+- Category: standard
+- Location: `.github/workflows/deploy-static.yml`, called at tag `deploy-static-v1` after that tag exists
+- Status: implemented
+- Use: core
+- Priority: now
+- Adoption: After `deploy-static-v1` exists on the default branch, replace a copied workflow with a caller that passes the static profile, `rollback`, and the four secrets. Move that tag to adopt a compatible fix. A breaking caller contract uses a new tag. Until the tag exists, keep the working local workflow. The application does not copy the script.
+- Dependencies: secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS`, plus the caller's build profile. For the Next.js profile, `pnpm check` must write `out/index.html`.
+
+### Package release
+
+- Purpose: Version the framework packages independently with Changesets. Publish is skipped until the npm scope is confirmed. One package does not force the others to the same version.
+- Category: standard
+- Location: `.github/workflows/release.yml` and `.changeset/config.json`
+- Status: implemented
+- Use: core
+- Priority: now
+- Adoption: Applications do not call this workflow. They adopt a package by bumping a published version after `framework-check` reports it. Publication is blocked while `scopeConfirmed` is false.
+- Dependencies: Changesets
+
+### CI pipeline
+
+- Purpose: A reusable check workflow for applications. `.github/workflows/ci.yml` in this repository checks the framework only and is not that shared caller.
+- Category: standard
+- Location: no reusable application workflow yet
+- Status: proposed
+- Use: core
+- Priority: now
+- Adoption: None. Applications keep their own check job until a tagged reusable workflow exists.
+- Dependencies: none
+
+### Secrets and deploy access
+
+- Purpose: Per-application deploy credentials and a non-root deploy account. The static workflow checks the four secret names and refuses to deploy as root. Rotation, hosting access, and other secret classes are not a shared workflow.
+- Category: standard
+- Location: the secret contract in `docs/consumer-contract.md`
+- Status: proposed
+- Use: core
+- Priority: now
+- Adoption: Set `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS` on the application. Do not commit those values.
+- Dependencies: Static deployment for the static profile
+
+### Git practices
+
+- Purpose: Repository permissions, branch protection, and review expectations. Each repository keeps its own access list.
+- Category: standard
+- Location: no shared ruleset yet
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: None until a documented ruleset exists. Applying it is a GitHub setting, not a package install.
+- Dependencies: none
+
+### Dependency update policy
+
+- Purpose: Policy for dependencies that are not framework packages, including vulnerability review. Framework package versions stay with `framework-check`.
+- Category: standard
+- Location: no shared bot configuration yet
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: None. An application adopts a framework package update by editing its own manifest.
+- Dependencies: Framework update checker for `@app-framework/*` only
+
+### Automated test policy
+
+- Purpose: Where unit, integration, contract, and end-to-end tests live, and that application tests stay in the application. This repository's tests cover the framework.
+- Category: standard
+- Location: no shared test workflow yet
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: None until the policy is written as a convention or a reusable check. Shipping this repository's tests does not test an application.
+- Dependencies: CI pipeline, once that workflow exists
+
+### Documentation structure
+
+- Purpose: Where an application's README, decisions, and link to this catalogue live. Product description stays in the application.
+- Category: standard
+- Location: no shared documentation template yet
+- Status: proposed
+- Use: core
+- Priority: now
+- Adoption: Link to this catalogue. Do not copy it. A documentation layout change is a migration in each application that wants it.
+- Dependencies: none
+
+### Security baseline
+
+- Purpose: A checklist for transport, input validation, access, headers, secret handling, supply chain, and incident response. Installing a package does not make a product compliant.
+- Category: standard
+- Location: no checklist file yet
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: None until the checklist exists. Each application still has to implement and review the controls.
+- Dependencies: Application configuration for the server and browser split
+
+### Accessibility standard
+
+- Purpose: Keyboard access, semantics, contrast, reduced motion, and screen-reader expectations, including tests at the component boundary. Semantic attributes stay enabled.
+- Category: standard
+- Location: no shared checklist yet. `af-heading` sets a heading role when it connects.
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: UI package updates follow the package path. Other accessibility work stays in the application until a shared rule exists.
+- Dependencies: UI primitives and design tokens for the elements that exist
+
+### Responsive layout
+
+- Purpose: Layout that remains usable on a narrow viewport. The UI stylesheet already reduces theme padding below 40rem. A shared breakpoint policy is not a separate artifact.
+- Category: standard
+- Location: the viewport rule in `packages/ui/styles.css`; no separate policy file
+- Status: proposed
+- Use: core
+- Priority: next
+- Adoption: A stylesheet change follows the UI package. Applications still test their own layouts.
+- Dependencies: UI primitives and design tokens
+
+## Candidates
+
+### Technology baseline
+
+- Purpose: The supported Next.js, TypeScript, Node, and pnpm line for a new application. The starter manifest is the current copy. It is not a centrally updated pin.
+- Category: candidate
+- Location: App-Template
+- Status: deferred
+- Use: core
+- Priority: now
+- Adoption: New applications inherit the template. An existing application changes its own toolchain. This repository does not synchronise copied starter files.
+- Dependencies: none
+
+### Repository structure
+
+- Purpose: The starter folder layout. Application-specific modules stay in the application. A structural change needs an explicit migration.
+- Category: candidate
+- Location: App-Template
+- Status: deferred
+- Use: core
+- Priority: now
+- Adoption: New applications inherit the template. Existing applications are not rearranged from here.
+- Dependencies: none
+
+### Project bootstrap
+
+- Purpose: The bootable starter, including the landing page shell. This repository does not scaffold applications.
+- Category: candidate
+- Location: App-Template
+- Status: deferred
+- Use: core
+- Priority: now
+- Adoption: Create the application from the template. Later template commits do not change repositories already created.
+- Dependencies: none
+
+### Development scripts
+
+- Purpose: Local `dev`, `check`, and `build` commands. They should stay thin wrappers around the tools an application already runs.
+- Category: candidate
+- Location: App-Template
+- Status: deferred
+- Use: core
+- Priority: now
+- Adoption: New applications inherit the scripts. Changing them later is a commit in that application.
+- Dependencies: Framework update checker when `dev` calls `framework-check`
+
+### Quality checks
+
+- Purpose: Local formatting and lint on staged files, with the full check in CI. A shared preset waits on Lint and TypeScript presets.
+- Category: candidate
+- Location: App-Template
+- Status: deferred
+- Use: core
+- Priority: now
+- Adoption: New applications inherit the local check. A hook change is a migration, not a package bump.
+- Dependencies: Lint and TypeScript presets, if that package is added
+
+### Server provisioning
+
+- Purpose: Host, TLS, reverse proxy, and process setup that turn a release directory into a served site. Copying files into `/root/apps` does not serve them.
+- Category: candidate
+- Location: no infrastructure repository yet
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None. Provision the host by hand until a reviewed infrastructure source exists. This repository does not select a provider.
+- Dependencies: Static deployment for the artifact layout
+
+### Server deployment profile
+
+- Purpose: A deployment path for a long-running Node.js process. It is not built. The only shared profile is static export.
+- Category: candidate
+- Location: no workflow yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None. Do not point a server application at `deploy-static-v1`.
+- Dependencies: none
+
+### Developer test state
+
+- Purpose: Seed and fixture conventions for local development. Fixture data stays in the application unless two applications share a helper.
+- Category: candidate
+- Location: no playbook yet
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None.
+- Dependencies: none
+
+### Branding and experience modes
+
+- Purpose: Guidance for a public marketing surface versus an operational product, and for themes beyond light and dark. `af-theme` implements light and dark only.
+- Category: candidate
+- Location: no design guide yet
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None. Each application controls its own presentation.
+- Dependencies: UI primitives and design tokens for the tokens that exist
+
+### Observability
+
+- Purpose: Process logs, metrics, traces, uptime checks, and where alerts go. Applications would expose a documented health or log surface. No collector is shared.
+- Category: candidate
+- Location: no monitoring service yet
+- Status: deferred
+- Use: core
+- Priority: next
+- Adoption: None.
+- Dependencies: none
+
+### Backups and restore
+
+- Purpose: Backup schedule, encryption, retention, and a restore drill. Each dataset has its own policy.
+- Category: candidate
+- Location: no runbook yet
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None. Verify restores against the real dataset.
+- Dependencies: none
+
+### Legal and compliance review
+
+- Purpose: A pre-launch checklist for privacy, terms, consumer law, retention, age, and jurisdiction. A shared checklist cannot make a product compliant.
+- Category: candidate
+- Location: no checklist yet
+- Status: deferred
+- Use: core
+- Priority: next
+- Adoption: None. Assess each product and jurisdiction separately.
+- Dependencies: none
+
+### IP and licensing
+
+- Purpose: Ownership, contractor terms, trademarks, dependency licences, and claims that have been independently checked.
+- Category: candidate
+- Location: no checklist yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None. The assessment is individual.
+- Dependencies: none
+
+### App onboarding
+
+- Purpose: A checklist for choosing optional capabilities while creating an application. A wizard is not part of this catalogue.
+- Category: candidate
+- Location: App-Template, as a short checklist when the starter documents one
+- Status: deferred
+- Use: core
+- Priority: later
+- Adoption: None. Do not add an installer that selects or provisions capabilities.
+- Dependencies: this catalogue
+
+### Domain modelling
+
+- Purpose: Entities and invariants stay beside the application's business logic. Promote a method only when two applications use it.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: core
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### API design
+
+- Purpose: Choose the API the product needs, validate input, paginate, and handle deprecation. Broader than environment configuration.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Application configuration for environment values only
+
+### Event-driven design
+
+- Purpose: Start with simple typed events. Add a queue when retries or durability require it.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Background jobs, if a queue is later shared
+
+### Scale and caching
+
+- Purpose: Measure a bottleneck before caching it. Invalidation and concurrency have to be explicit.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Database selection
+
+- Purpose: Choose a database for the workload. Do not assume every application can use the same engine.
+- Category: candidate
+- Location: an application decision
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None until Database integration exists for the chosen engine.
+- Dependencies: Database integration, when that package exists
+
+### Migrations and data integrity
+
+- Purpose: Version data changes, test a rollback, enforce constraints, and keep retries idempotent.
+- Category: candidate
+- Location: the application's migration tool
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None. Migrations stay with the application's schema.
+- Dependencies: Database integration, when that package exists
+
+### Multi-tenancy
+
+- Purpose: Enforce tenant isolation on the server. Design roles and the data model together.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Identity and access, and the database the application chose
+
+### Data retention and export
+
+- Purpose: Deletion, archive, backup, restore, and export duties for each dataset.
+- Category: candidate
+- Location: the application, with the legal review
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Legal and compliance review
+
+### Search and indexing
+
+- Purpose: Use ordinary filters or full-text first. Add a search provider only when that is insufficient.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Feature flags
+
+- Purpose: Flags only when a release or an experiment needs them. They should not become permanent branches in the product.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### User journeys
+
+- Purpose: Reuse a reviewed identity flow. Onboarding that is unique to the product stays in the application.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None until Identity and access exists.
+- Dependencies: Identity and access
+
+### Age assurance and identity checks
+
+- Purpose: Age or formal identity checks only when the law or a contract requires them. Collect as little sensitive data as possible.
+- Category: candidate
+- Location: a specialist provider, chosen per product
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None. This cannot be satisfied by installing a package.
+- Dependencies: Legal and compliance review
+
+### Abuse prevention
+
+- Purpose: Rate limits, spam controls, and a security audit trail, with thresholds chosen for the product.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None.
+- Dependencies: none
+
+### Compliance certification
+
+- Purpose: Trust claims only when an independent assessment supports them.
+- Category: candidate
+- Location: an external assessor
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Content management
+
+- Purpose: Publishing, revisions, approval, and moderation, only for a product that needs them.
+- Category: candidate
+- Location: the application or a provider
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Navigation and technical SEO
+
+- Purpose: Route meaning, metadata, canonical URLs, and a sitemap for public pages. Private pages do not use the same rules.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None. The starter does not add a public-site SEO package.
+- Dependencies: none
+
+### Landing page and conversion
+
+- Purpose: The starter's generic first page, and any later marketing page. There is no shared marketing interface. This repository does not build a landing page.
+- Category: candidate
+- Location: App-Template for the starter page
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: New applications inherit the starter page and then replace it.
+- Dependencies: none
+
+### Search analytics and redirects
+
+- Purpose: Keep public URLs and record organic performance when a site is replaced.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Internationalisation
+
+- Purpose: Standard date, number, and currency formatting, plus translation and right-to-left layout when a product asks for them.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: UI primitives and design tokens only for text those elements already render
+
+### Advanced widgets
+
+- Purpose: Tables, charts, calendars, and other widgets. Add one to `@app-framework/ui` only after an application needs that element, and keep it accessible.
+- Category: candidate
+- Location: `@app-framework/ui`, when a consumer needs the element
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None until that element is published.
+- Dependencies: UI primitives and design tokens
+
+### Feedback and loading states
+
+- Purpose: Consistent empty, loading, and error feedback. Domain-specific errors stay in the application.
+- Category: candidate
+- Location: the application, or `@app-framework/ui` if a primitive is repeated
+- Status: deferred
+- Use: core
+- Priority: next
+- Adoption: None until a repeated primitive is added to the UI package.
+- Dependencies: UI primitives and design tokens
+
+### Collaboration and shared editing
+
+- Purpose: Decide consistency, ownership, and conflict handling before choosing locks or a merge structure.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Realtime transport, if live collaboration is later shared
+
+### Scheduling and booking
+
+- Purpose: Bookings and reminders for a product. This is separate from background job scheduling.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Maps and geospatial
+
+- Purpose: A provider map and the application's own geospatial rules.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: a map provider
+
+### Provider integrations
+
+- Purpose: Adapters, idempotency, retries, signature checks, and secret isolation for webhooks and third-party APIs.
+- Category: candidate
+- Location: the application, until two applications share an adapter
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None.
+- Dependencies: none
+
+### Analytics definitions
+
+- Purpose: Define measures with a purpose, consent, and a check on data quality. Do not treat observation as a conclusion.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Analytics instrumentation, if that package exists
+
+### Experiments
+
+- Purpose: A/B tests and staged rollouts only when traffic and the decision justify them.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Feature flags, if flags are adopted
+
+### Monitoring and incident response
+
+- Purpose: Who receives an alert, what they do, and the recovery target. No on-call tool is shared.
+- Category: candidate
+- Location: an operations note in the application
+- Status: deferred
+- Use: core
+- Priority: next
+- Adoption: None.
+- Dependencies: Observability
+
+### Manual and device QA
+
+- Purpose: Risk-based checks on a browser, a device, performance, and security, in addition to automated tests.
+- Category: candidate
+- Location: no shared matrix yet
+- Status: deferred
+- Use: core
+- Priority: next
+- Adoption: None.
+- Dependencies: Automated test policy
+
+### Customer support
+
+- Purpose: A path for help and issue triage. The replies and the roadmap belong to the product.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: none
+
+### Application lifecycle
+
+- Purpose: Export data, revoke secrets, and retire DNS and infrastructure on purpose. Also the point at which a shared module is removed.
+- Category: candidate
+- Location: no shared checklist yet
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None. Retiring an application is a change in that application and its host.
+- Dependencies: Legal and compliance review for export and deletion duties
+
+### Cost controls
+
+- Purpose: Budgets and capacity decisions after there is usage to measure. Do not add capacity from a catalogue entry.
+- Category: candidate
+- Location: the application's hosting account
+- Status: deferred
+- Use: optional
+- Priority: next
+- Adoption: None.
+- Dependencies: none
+
+### Operational product interface
+
+- Purpose: Dashboards, operational task flows, administration screens, and role-specific views. These are product interfaces, not a shared package.
+- Category: candidate
+- Location: the application
+- Status: deferred
+- Use: optional
+- Priority: later
+- Adoption: None.
+- Dependencies: Identity and access, when a product needs roles
+
+## Moving a pattern
+
+1. Name a second real use, or a strong first one, as repeated behaviour.
+2. Decide whether the canonical artifact is a package, a standard or workflow, or still only a candidate.
+3. Record the location, the consumers, the dependencies, and how an existing application adopts the change.
+4. Build the smallest version and try it from a consuming application, not only inside this repository.
+5. Mark it implemented only after that central artifact exists. A written row is not enough.
+
+## Former requirement index
+
+These names are the previous 121-item inventory. The pattern column is the status that applies. This index is not a second catalogue.
+
+| Former requirement | Pattern |
+| --- | --- |
+| application structure | Repository structure |
+| architecture patterns | Development conventions |
+| domain design | Domain modelling |
+| type and API contracts | Application configuration |
+| extension mechanisms | Technology baseline |
+| compatibility | Package release |
+| application profiles | Server deployment profile |
+| dependency updates | Framework update checker |
+| controlled migrations | Migrations and data integrity |
+| release governance | Package release |
+| regression prevention | Automated test policy |
+| module decommissioning | Application lifecycle |
+| platform evolution | Technology baseline |
+| project lifecycle | Application lifecycle |
+| knowledge retention | Documentation structure |
+| project bootstrap | Project bootstrap |
+| Cursor integration | Development conventions |
+| code quality | Development conventions |
+| development states | Developer test state |
+| developer ergonomics | Development scripts |
+| collaboration | Git practices |
+| automation safeguards | Development conventions |
+| documentation | Documentation structure |
+| unit tests | Automated test policy |
+| integration tests | Automated test policy |
+| contract tests | Automated test policy |
+| end-to-end tests | Automated test policy |
+| visual tests | Manual and device QA |
+| accessibility tests | Accessibility standard |
+| performance tests | Manual and device QA |
+| security tests | Security baseline |
+| pipeline gates | CI pipeline |
+| relational storage | Database integration |
+| access layer | Database integration |
+| data validation | Application configuration |
+| schema evolution | Migrations and data integrity |
+| offline persistence | Client offline sync |
+| synchronisation | Client offline sync |
+| caching and search | Scale and caching |
+| data lifecycle | Data retention and export |
+| database operations | Database integration |
+| registration | Identity and access |
+| authentication | Identity and access |
+| session management | Identity and access |
+| authorisation | Identity and access |
+| account management | Identity and access |
+| team access | Identity and access |
+| age assurance | Age assurance and identity checks |
+| identity verification | Age assurance and identity checks |
+| application protection | Security baseline |
+| network and transport | Security baseline |
+| secrets | Secrets and deploy access |
+| supply-chain security | Dependency update policy |
+| abuse controls | Abuse prevention |
+| trust assurance | Compliance certification |
+| privacy engineering | Security baseline |
+| incident response | Monitoring and incident response |
+| privacy and terms | Legal and compliance review |
+| consumer law | Legal and compliance review |
+| payment compliance | Legal and compliance review |
+| age and identity compliance | Legal and compliance review |
+| accessibility law | Legal and compliance review |
+| intellectual property | IP and licensing |
+| open-source obligations | IP and licensing |
+| operational records | Legal and compliance review |
+| regional regulation | Legal and compliance review |
+| design tokens | UI primitives and design tokens |
+| shared primitives | UI primitives and design tokens |
+| brandable themes | Branding and experience modes |
+| experience modes | Branding and experience modes |
+| navigation | Navigation and technical SEO |
+| information hierarchy | UI primitives and design tokens |
+| responsive behaviour | Responsive layout |
+| accessibility | Accessibility standard |
+| sensory safety | Accessibility standard |
+| localisation | Internationalisation |
+| interaction states | Feedback and loading states |
+| usability measurement | Analytics definitions |
+| landing page | Landing page and conversion |
+| discovery journeys | Landing page and conversion |
+| SEO | Navigation and technical SEO |
+| conversion | Landing page and conversion |
+| trust signals | Landing page and conversion |
+| content publishing | Content management |
+| communication | Notifications and messaging |
+| dashboard | Operational product interface |
+| workflows | Operational product interface |
+| data management | Database integration |
+| keyboard efficiency | Accessibility standard |
+| role-specific views | Operational product interface |
+| administration | Operational product interface |
+| operational correctness | Automated test policy |
+| Realtime systems | Realtime transport |
+| payments | Billing |
+| billing | Billing |
+| file storage | File and media storage |
+| media safety | File and media storage |
+| notifications | Notifications and messaging |
+| jobs and scheduling | Background jobs |
+| search and discovery | Search and indexing |
+| collaboration | Collaboration and shared editing |
+| external APIs | Provider integrations |
+| AI integration | AI integration |
+| build artifacts | Static deployment |
+| deployment pipelines | Static deployment |
+| environment isolation | Secrets and deploy access |
+| hosting | Server provisioning |
+| application separation | Repository structure |
+| release management | Static deployment |
+| resource management | Cost controls |
+| backup and recovery | Backups and restore |
+| infrastructure as code | Server provisioning |
+| developer permissions | Git practices |
+| application logs | Observability |
+| monitoring | Observability |
+| tracing | Observability |
+| product analytics | Analytics instrumentation |
+| business KPIs | Analytics definitions |
+| meta-analytics | Analytics definitions |
+| experimentation | Experiments |
+| alerting | Monitoring and incident response |

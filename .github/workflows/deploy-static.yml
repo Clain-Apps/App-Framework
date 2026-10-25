@@ -1,0 +1,327 @@
+# Reusable static-site release. This file does not deploy App-Framework.
+# Callers pin deploy-static-v1. A breaking input or path change uses deploy-static-v2.
+# The build command and output directory come from the caller. This workflow does not
+# assume a bundler. The Next.js profile is documented in docs/consumer-contract.md.
+name: Deploy static site
+
+on:
+  workflow_call:
+    inputs:
+      rollback:
+        description: Repoint current at the previous release
+        required: false
+        type: boolean
+        default: false
+      node_version_file:
+        description: Relative Node.js version file in the caller repository
+        required: true
+        type: string
+      install_command:
+        description: Single-line install command fixed in the caller workflow
+        required: true
+        type: string
+      build_command:
+        description: Single-line command that writes the static directory
+        required: true
+        type: string
+      output_directory:
+        description: Relative directory that contains the static site
+        required: true
+        type: string
+      entry_file:
+        description: Relative entry file that must exist in the static directory
+        required: true
+        type: string
+    secrets:
+      VPS_HOST:
+        required: true
+      VPS_USER:
+        required: true
+      VPS_SSH_KEY:
+        required: true
+      VPS_KNOWN_HOSTS:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository != 'daniel-clain/App-Template'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+    steps:
+      - name: Require deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${VPS_HOST}" || { echo "Set the VPS_HOST secret."; exit 1; }
+          test -n "${VPS_USER}" || { echo "Set the VPS_USER secret."; exit 1; }
+          test -n "${VPS_SSH_KEY}" || { echo "Set the VPS_SSH_KEY secret."; exit 1; }
+          test -n "${VPS_KNOWN_HOSTS}" || { echo "Set the VPS_KNOWN_HOSTS secret."; exit 1; }
+          if [[ ! "${VPS_HOST}" =~ ^[A-Za-z0-9.-]+$ ]]; then
+            echo "VPS_HOST is not a hostname."
+            exit 1
+          fi
+          if [[ ! "${VPS_USER}" =~ ^[a-z_][a-z0-9_-]{0,31}$ || "${VPS_USER}" == "root" ]]; then
+            echo "Refusing to deploy as root. VPS_USER must be a non-root account."
+            exit 1
+          fi
+
+      - name: Check the static profile
+        if: inputs.rollback == false
+        shell: bash
+        env:
+          NODE_VERSION_FILE: ${{ inputs.node_version_file }}
+          INSTALL_COMMAND: ${{ inputs.install_command }}
+          BUILD_COMMAND: ${{ inputs.build_command }}
+          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
+          ENTRY_FILE: ${{ inputs.entry_file }}
+        run: |
+          set -euo pipefail
+          single_line() {
+            local name="$1"
+            local value="$2"
+            if [[ -z "${value}" || "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+              echo "${name} must be one non-empty line."
+              exit 1
+            fi
+          }
+          relative_path() {
+            local name="$1"
+            local value="$2"
+            if [[ ! "${value}" =~ ^[A-Za-z0-9._/-]+$ || "${value}" == *..* || "${value}" == /* || "${value}" == "." || "${value}" == */ ]]; then
+              echo "${name} must be a relative path."
+              exit 1
+            fi
+          }
+          single_line "install_command" "${INSTALL_COMMAND}"
+          single_line "build_command" "${BUILD_COMMAND}"
+          relative_path "node_version_file" "${NODE_VERSION_FILE}"
+          relative_path "output_directory" "${OUTPUT_DIRECTORY}"
+          relative_path "entry_file" "${ENTRY_FILE}"
+
+      - name: Checkout
+        if: inputs.rollback == false
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+
+      - name: Install pnpm
+        if: inputs.rollback == false
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        if: inputs.rollback == false
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ inputs.node_version_file }}
+          cache: pnpm
+
+      - name: Install dependencies
+        if: inputs.rollback == false
+        shell: bash
+        env:
+          INSTALL_COMMAND: ${{ inputs.install_command }}
+        run: bash --noprofile --norc -c "${INSTALL_COMMAND}"
+
+      - name: Validate and build
+        if: inputs.rollback == false
+        shell: bash
+        env:
+          BUILD_COMMAND: ${{ inputs.build_command }}
+        run: bash --noprofile --norc -c "${BUILD_COMMAND}"
+
+      - name: Check the static export
+        if: inputs.rollback == false
+        shell: bash
+        env:
+          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
+          ENTRY_FILE: ${{ inputs.entry_file }}
+        run: |
+          set -euo pipefail
+          test -s "${OUTPUT_DIRECTORY}/${ENTRY_FILE}"
+          if [[ -e "${OUTPUT_DIRECTORY}/node_modules" || -e "${OUTPUT_DIRECTORY}/.git" ]]; then
+            echo "Refusing to deploy development files."
+            exit 1
+          fi
+          if find "${OUTPUT_DIRECTORY}" \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
+            echo "Refusing to deploy environment files."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${VPS_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${VPS_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          ssh-keygen -lf ~/.ssh/known_hosts >/dev/null
+
+      - name: Confirm the remote account
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
+          remote_user="$(${ssh_command} "${VPS_USER}@${VPS_HOST}" "id -un")"
+          if [[ "${remote_user}" == "root" || "${remote_user}" != "${VPS_USER}" ]]; then
+            echo "Refusing to deploy as root."
+            exit 1
+          fi
+
+      - name: Publish the release
+        if: inputs.rollback == false
+        shell: bash
+        env:
+          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
+          ENTRY_FILE: ${{ inputs.entry_file }}
+        run: |
+          set -euo pipefail
+          name="${GITHUB_REPOSITORY#*/}"
+          if [[ ! "${name}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$ ]]; then
+            echo "Repository name must be one safe path segment."
+            exit 1
+          fi
+          release_id="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ ! "${release_id}" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
+            echo "Release id is not safe."
+            exit 1
+          fi
+          app_root="/root/apps/${name}"
+          destination="${app_root}/releases/${release_id}"
+          case "${destination}" in
+            /root/apps/"${name}"/releases/"${release_id}") ;;
+            *)
+              echo "Refusing an unexpected release path."
+              exit 1
+              ;;
+          esac
+
+          ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
+          remote="${VPS_USER}@${VPS_HOST}"
+          rsync_ssh="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
+
+          remove_failed_release() {
+            ${ssh_command} "${remote}" "bash -s" <<EOF
+          set -euo pipefail
+          destination=$(printf '%q' "${destination}")
+          app_root=$(printf '%q' "${app_root}")
+          case "\${destination}" in
+            "\${app_root}/releases/"*) ;;
+            *)
+              echo "Refusing to delete an unexpected path."
+              exit 1
+              ;;
+          esac
+          rm -rf -- "\${destination}"
+          EOF
+          }
+
+          if ! ${ssh_command} "${remote}" "mkdir -p -- $(printf '%q' "${destination}")"; then
+            echo "Could not create the release directory."
+            exit 1
+          fi
+
+          if ! rsync -az --delete -e "${rsync_ssh}" "${OUTPUT_DIRECTORY}/" "${remote}:${destination}/"; then
+            remove_failed_release || true
+            exit 1
+          fi
+
+          if ! ${ssh_command} "${remote}" "bash -s" <<EOF
+          set -euo pipefail
+          destination=$(printf '%q' "${destination}")
+          entry=$(printf '%q' "${ENTRY_FILE}")
+          test -s "\${destination}/\${entry}"
+          if find "\${destination}" \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
+            echo "Refusing to publish environment files."
+            exit 1
+          fi
+          EOF
+          then
+            remove_failed_release || true
+            exit 1
+          fi
+
+          ${ssh_command} "${remote}" "bash -s" <<EOF
+          set -euo pipefail
+          app_root=$(printf '%q' "${app_root}")
+          release_rel=$(printf '%q' "releases/${release_id}")
+          entry=$(printf '%q' "${ENTRY_FILE}")
+          current="\${app_root}/current"
+          previous="\${app_root}/previous"
+          if [[ -e "\${current}" && ! -L "\${current}" ]]; then
+            echo "Refusing to replace current because it is not a symlink."
+            exit 1
+          fi
+          if [[ -L "\${current}" ]]; then
+            prior="\$(readlink "\${current}")"
+            if [[ ! "\${prior}" =~ ^releases/[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
+              echo "Existing current symlink is not a release path."
+              exit 1
+            fi
+            ln -sfn "\${prior}" "\${previous}"
+          fi
+          ln -sfn "\${release_rel}" "\${current}"
+          test -s "\${current}/\${entry}"
+          EOF
+
+      - name: Roll back to the previous release
+        if: inputs.rollback
+        shell: bash
+        env:
+          ENTRY_FILE: ${{ inputs.entry_file }}
+        run: |
+          set -euo pipefail
+          name="${GITHUB_REPOSITORY#*/}"
+          if [[ ! "${name}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$ ]]; then
+            echo "Repository name must be one safe path segment."
+            exit 1
+          fi
+          app_root="/root/apps/${name}"
+          ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
+          remote="${VPS_USER}@${VPS_HOST}"
+          ${ssh_command} "${remote}" "bash -s" <<EOF
+          set -euo pipefail
+          app_root=$(printf '%q' "${app_root}")
+          entry=$(printf '%q' "${ENTRY_FILE}")
+          current="\${app_root}/current"
+          previous="\${app_root}/previous"
+          if [[ ! -L "\${previous}" ]]; then
+            echo "No previous release is recorded."
+            exit 1
+          fi
+          prior="\$(readlink "\${previous}")"
+          if [[ ! "\${prior}" =~ ^releases/[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
+            echo "Previous symlink is not a release path."
+            exit 1
+          fi
+          if [[ ! -s "\${app_root}/\${prior}/\${entry}" ]]; then
+            echo "Previous release has no entry file."
+            exit 1
+          fi
+          if [[ -e "\${current}" && ! -L "\${current}" ]]; then
+            echo "Refusing to replace current because it is not a symlink."
+            exit 1
+          fi
+          ln -sfn "\${prior}" "\${current}"
+          test -s "\${current}/\${entry}"
+          EOF
+
+      - name: Remove the SSH key
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/deploy_key
