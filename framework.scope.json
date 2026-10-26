@@ -1,4 +1,6 @@
 {
   "npmScope": "@app-framework",
-  "scopeConfirmed": false
+  "scopeConfirmed": false,
+  "repository": "Clain-Apps/App-Framework",
+  "templateRepository": "Clain-Apps/App-Template"
 }

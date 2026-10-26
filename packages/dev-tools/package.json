@@ -2,11 +2,12 @@
   "name": "@app-framework/dev-tools",
   "version": "0.1.0",
   "private": true,
-  "description": "Checks installed App-Framework packages against the latest stable published versions.",
+  "description": "Checks published App-Framework packages and sets up an application's selected capabilities.",
   "type": "module",
   "license": "UNLICENSED",
   "bin": {
-    "framework-check": "./dist/cli.js"
+    "framework-check": "./dist/cli.js",
+    "framework-setup": "./dist/setup-cli.js"
   },
   "exports": {
     ".": {
@@ -30,7 +31,7 @@
     "@types/semver": "^7.7.1"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ../../scripts/bundle-dev-tools-consumer.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

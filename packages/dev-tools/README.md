@@ -1,9 +1,11 @@
 # @app-framework/dev-tools
 
-Command-line check for published App-Framework updates.
+`framework-check` compares installed `@app-framework/*` packages with the latest stable versions on the npm registry. `framework-setup` reads an application's `framework.config.json`, validates it against the capability manifest, copies shared Cursor rules, and writes the static deployment caller.
 
-`framework-check` reads the consumer manifest, ignores unrelated dependencies, and compares installed framework packages with the latest stable versions on the npm registry. Compatible updates and major updates are reported separately. Required packages named in `appFramework.required` are reported when they are missing.
+Warnings and an unavailable registry exit 0. Neither command edits `package.json` or the lockfile.
 
-Warnings and registry failures exit 0 so a development script can keep going. The command never edits dependency files.
+The npm scope is not confirmed. The package is private and has no registry release. The repository's [`docs/consumer-contract.md`](../../docs/consumer-contract.md) is the application-facing contract.
 
-The npm scope is not confirmed. The package is private and is not published yet. See the repository README before the first publish.
+`framework-check` options: `--cwd`, `--timeout`, `--cache-path`, `--cache-ttl`, `--registry`, and `--no-cache`. Results are cached for 12 hours under `node_modules/.cache/framework-check.json`.
+
+`framework-setup` options: `--cwd <application>`, `--dry-run`, `--check`, and `--list`.

@@ -1,0 +1,175 @@
+{
+  "contractVersion": 1,
+  "repository": "Clain-Apps/App-Framework",
+  "templateRepository": "Clain-Apps/App-Template",
+  "deployRoot": "/all-apps",
+  "profiles": [
+    {
+      "id": "static-web",
+      "purpose": "Build a static site and publish it under /all-apps/<repository-name>/.",
+      "limitations": "Publishes a static directory. Does not start a Node.js server or a container."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "ui",
+      "catalogue": "UI primitives and design tokens",
+      "purpose": "Tag-styled af-theme, af-heading, and af-panel elements, plus the shared colour, space, and type tokens.",
+      "location": "packages/ui",
+      "type": "core",
+      "version": "0.1.0",
+      "dependencies": [],
+      "configurationSchema": null,
+      "integration": "After publication, pnpm add @app-framework/ui. Import @app-framework/ui and @app-framework/ui/styles.css from a client component and call defineAppElements() inside useEffect.",
+      "compatibility": {
+        "node": ">=22",
+        "profiles": ["static-web"],
+        "notes": "Registry install waits until the npm scope is confirmed and this package is published."
+      },
+      "enablement": "default-enabled",
+      "selectable": true,
+      "distribution": {
+        "mechanism": "npm",
+        "status": "unpublished",
+        "packageName": "@app-framework/ui",
+        "dependencyField": "dependencies"
+      }
+    },
+    {
+      "id": "app-config",
+      "catalogue": "Application configuration",
+      "purpose": "Typed environment values, with server-only values kept out of browser-safe output.",
+      "location": "packages/config",
+      "type": "core",
+      "version": "0.1.0",
+      "dependencies": [],
+      "configurationSchema": null,
+      "integration": "After publication, pnpm add @app-framework/app-config. Call defineConfig, loadConfig, and loadPublicConfig from application code.",
+      "compatibility": {
+        "node": ">=22",
+        "profiles": ["static-web"],
+        "notes": "Registry install waits until the npm scope is confirmed and this package is published."
+      },
+      "enablement": "mandatory",
+      "selectable": true,
+      "distribution": {
+        "mechanism": "npm",
+        "status": "unpublished",
+        "packageName": "@app-framework/app-config",
+        "dependencyField": "dependencies"
+      }
+    },
+    {
+      "id": "dev-tools",
+      "catalogue": "Framework update checker",
+      "purpose": "framework-check reports published framework package versions. framework-setup validates an application configuration and applies the capabilities that can be configured.",
+      "location": "packages/dev-tools",
+      "type": "core",
+      "version": "0.1.0",
+      "dependencies": ["semver"],
+      "configurationSchema": null,
+      "integration": "After publication, pnpm add -D @app-framework/dev-tools and add the script framework:setup. Until then, run the built CLI from a checkout of this repository.",
+      "compatibility": {
+        "node": ">=22",
+        "profiles": ["static-web"],
+        "notes": "Registry install waits until the npm scope is confirmed and this package is published."
+      },
+      "enablement": "default-enabled",
+      "selectable": true,
+      "distribution": {
+        "mechanism": "npm",
+        "status": "unpublished",
+        "packageName": "@app-framework/dev-tools",
+        "dependencyField": "devDependencies"
+      }
+    },
+    {
+      "id": "cursor-standards",
+      "catalogue": "Development conventions",
+      "purpose": "Shared Cursor rules for naming, separation, TypeScript, organisation, testing, and maintainability.",
+      "location": "standards/cursor",
+      "type": "standard",
+      "version": "1.0.0",
+      "dependencies": [],
+      "configurationSchema": null,
+      "integration": "framework-setup copies standards/cursor/rules into .cursor/rules/framework and writes .cursor/framework-standards.json.",
+      "compatibility": {
+        "node": ">=22",
+        "profiles": ["static-web"],
+        "notes": "Rules outside .cursor/rules/framework stay in the application. The interface rule in this repository stays here."
+      },
+      "enablement": "default-enabled",
+      "selectable": true,
+      "distribution": {
+        "mechanism": "file-sync",
+        "status": "available"
+      }
+    },
+    {
+      "id": "deploy-static",
+      "catalogue": "Static deployment",
+      "purpose": "Publish a static directory to /all-apps/<repository-name>/ with versioned releases and rollback.",
+      "location": ".github/workflows/deploy-static.yml",
+      "type": "standard",
+      "version": "deploy-static-v1",
+      "dependencies": ["VPS_HOST", "VPS_USER", "VPS_SSH_KEY", "VPS_KNOWN_HOSTS"],
+      "configurationSchema": {
+        "type": "object",
+        "required": ["workflowRef", "deploy"],
+        "properties": {
+          "workflowRef": {
+            "type": "string",
+            "pattern": "^(main|deploy-static-v[1-9][0-9]*)$"
+          },
+          "deploy": {
+            "type": "object",
+            "required": ["nodeVersionFile", "installCommand", "buildCommand", "outputDirectory", "entryFile"],
+            "properties": {
+              "nodeVersionFile": { "type": "string" },
+              "installCommand": { "type": "string" },
+              "buildCommand": { "type": "string" },
+              "outputDirectory": { "type": "string" },
+              "entryFile": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "integration": "A caller uses workflow_call on Clain-Apps/App-Framework/.github/workflows/deploy-static.yml at main or deploy-static-vN. The implementation stays in this repository.",
+      "compatibility": {
+        "node": ">=22",
+        "profiles": ["static-web"],
+        "notes": "Static files only. The workflow does not start a Node.js server or a container. Calling it requires the workflow file on the default branch."
+      },
+      "enablement": "default-enabled",
+      "selectable": true,
+      "distribution": {
+        "mechanism": "workflow-call",
+        "status": "available"
+      }
+    },
+    {
+      "id": "package-release",
+      "catalogue": "Package release",
+      "purpose": "Version and publish the framework packages with Changesets. Applications do not run this workflow.",
+      "location": ".github/workflows/release.yml",
+      "type": "standard",
+      "version": "1.0.0",
+      "dependencies": ["@changesets/cli"],
+      "configurationSchema": null,
+      "integration": "The release workflow in this repository publishes after the npm scope is confirmed. Applications bump their own dependency ranges.",
+      "compatibility": {
+        "node": ">=22",
+        "profiles": [],
+        "notes": "Runs in this repository. Setup rejects an application that selects it."
+      },
+      "enablement": "opt-in",
+      "selectable": false,
+      "distribution": {
+        "mechanism": "repository-workflow",
+        "status": "available"
+      }
+    }
+  ]
+}

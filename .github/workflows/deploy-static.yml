@@ -1,7 +1,10 @@
-# Reusable static-site release. This file does not deploy App-Framework.
-# Callers pin deploy-static-v1. A breaking input or path change uses deploy-static-v2.
-# The build command and output directory come from the caller. This workflow does not
-# assume a bundler. The Next.js profile is documented in docs/consumer-contract.md.
+# Reusable static-site release for /all-apps/<repository-name>/.
+# This file does not deploy App-Framework or App-Template.
+# Callers reference Clain-Apps/App-Framework at main or at deploy-static-vN.
+# main follows the protected default branch. A tag pins one caller contract.
+# The repository name comes from the caller. No other directory is moved or deleted.
+# There is no Node.js server profile and no container profile.
+# The Next.js static profile is documented in docs/consumer-contract.md.
 name: Deploy static site
 
 on:
@@ -51,7 +54,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository != 'daniel-clain/App-Template'
+    if: github.repository != 'Clain-Apps/App-Template' && github.repository != 'Clain-Apps/App-Framework'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -183,6 +188,7 @@ jobs:
             exit 1
           fi
 
+      # Create only /all-apps/<repository-name>/releases/<id>. Leave every other directory alone.
       - name: Publish the release
         if: inputs.rollback == false
         shell: bash
@@ -201,10 +207,10 @@ jobs:
             echo "Release id is not safe."
             exit 1
           fi
-          app_root="/root/apps/${name}"
+          app_root="/all-apps/${name}"
           destination="${app_root}/releases/${release_id}"
           case "${destination}" in
-            /root/apps/"${name}"/releases/"${release_id}") ;;
+            /all-apps/"${name}"/releases/"${release_id}") ;;
             *)
               echo "Refusing an unexpected release path."
               exit 1
@@ -291,7 +297,7 @@ jobs:
             echo "Repository name must be one safe path segment."
             exit 1
           fi
-          app_root="/root/apps/${name}"
+          app_root="/all-apps/${name}"
           ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
           remote="${VPS_USER}@${VPS_HOST}"
           ${ssh_command} "${remote}" "bash -s" <<EOF

@@ -36,13 +36,21 @@ describe("published build artifacts", () => {
   it("ships the framework-check bin and distinguishes a major update from the built module", async () => {
     const packageDir = path.join(root, "packages/dev-tools");
     const cli = await readFile(path.join(packageDir, "dist/cli.js"), "utf8");
+    const setupCli = await readFile(path.join(packageDir, "dist/setup-cli.js"), "utf8");
     expect(cli.startsWith("#!/usr/bin/env node")).toBe(true);
+    expect(setupCli.startsWith("#!/usr/bin/env node")).toBe(true);
     const declaration = await readFile(path.join(packageDir, "dist/index.d.ts"), "utf8");
     expect(declaration).toContain("checkFrameworkPackages");
+    expect(declaration).toContain("runSetup");
 
     const packed = await packFiles(packageDir);
     expect(packed).toContain("dist/cli.js");
+    expect(packed).toContain("dist/setup-cli.js");
     expect(packed).toContain("dist/index.d.ts");
+    expect(packed).toContain("dist/consumer/manifest.json");
+    expect(packed).toContain("dist/consumer/source.json");
+    expect(packed).toContain("dist/consumer/standards/cursor/version.json");
+    expect(packed.some((file) => file.endsWith("/naming.mdc"))).toBe(true);
     expect(packed.some((file) => file.startsWith("src/") || file.startsWith("tests/"))).toBe(false);
 
     const cwd = await mkdtemp(path.join(tmpdir(), "framework-artifact-"));
@@ -89,6 +97,11 @@ describe("published build artifacts", () => {
     ]);
     expect(offline.code).toBe(0);
     expect(offline.stdout).toContain("registry unavailable; version check skipped");
+
+    const listed = await runNode([path.join(packageDir, "dist/setup-cli.js"), "--list"]);
+    expect(listed.code).toBe(0);
+    expect(listed.stdout).toContain("cursor-standards");
+    expect(listed.stdout).toContain("unpublished");
   });
 
   it("ships the ui entry and tag stylesheet", async () => {

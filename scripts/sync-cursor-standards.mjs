@@ -1,3 +1,5 @@
+// Copy standards/cursor into an application. framework-setup performs this copy
+// together with the rest of application setup. This script remains the direct copy.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";

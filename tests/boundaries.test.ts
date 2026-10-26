@@ -30,7 +30,10 @@ describe("package boundaries", () => {
       ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
       "./styles.css": "./styles.css",
     });
-    expect(tools.bin).toEqual({ "framework-check": "./dist/cli.js" });
+    expect(tools.bin).toEqual({
+      "framework-check": "./dist/cli.js",
+      "framework-setup": "./dist/setup-cli.js",
+    });
     expect(config.dependencies).toBeUndefined();
     expect(ui.dependencies).toBeUndefined();
     expect(tools.dependencies).toEqual({ semver: expect.any(String) });

@@ -11,7 +11,7 @@
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.tests.json --pretty false",
     "lint": "eslint .",
     "test": "vitest run",
-    "build": "tsc -b --pretty false --force",
+    "build": "tsc -b --pretty false --force && node scripts/bundle-dev-tools-consumer.mjs",
     "test:artifacts": "vitest run --config vitest.artifacts.config.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm test:artifacts",
     "changeset": "changeset",
@@ -30,6 +30,7 @@
     "happy-dom": "^21.0.4",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.72.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
   }
 }

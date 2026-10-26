@@ -8,13 +8,22 @@ A documented pattern is not an implemented capability. Status describes the cent
 - **proposed** — a central home is identified, and the artifact is not ready to adopt.
 - **deferred** — kept on the roadmap. This is not a commitment to build it.
 
-Category is where that artifact would live:
+Implemented capabilities also have a machine-readable contract in [`capabilities/manifest.json`](capabilities/manifest.json). `framework-setup` reads that contract. Proposed and deferred rows stay in this catalogue and cannot be selected.
+
+Four classes cover every pattern:
+
+- **Core capability** — an implemented package or standard that an applicable profile requires or enables by default. In the fields below that is use `core` and status `implemented`.
+- **Optional capability** — an implemented package a product turns on when it needs it. Use is `optional` and status is `implemented`. None are implemented yet.
+- **Shared standard or workflow** — category `standard` and status `implemented`. It is maintained here and consumed by reference.
+- **Candidate** — status `proposed` or `deferred`. A candidate is a documented pattern with no installable implementation.
+
+Category is where an artifact lives once it exists:
 
 - **package** — a versioned npm package.
-- **standard** — a workflow, convention, or policy maintained here and consumed by reference. Not an npm package.
+- **standard** — a workflow, convention, or policy maintained here and consumed by reference.
 - **candidate** — no validated central implementation yet.
 
-Use is **core** when every application should consider it, and **optional** when only some products need it. Priority is **now**, **next**, or **later**. Publishing a package, syncing a standards version, or moving a workflow tag does not change an existing application by itself.
+Use is **core** when every application of that kind should consider it, and **optional** when only some products need it. Priority is **now**, **next**, or **later**. Publishing a package, syncing a standards version, or moving a workflow ref does not change an existing application by itself. The manifest records whether an implemented capability is mandatory, default-enabled, or opt-in.
 
 ## Packages
 
@@ -42,13 +51,13 @@ Use is **core** when every application should consider it, and **optional** when
 
 ### Framework update checker
 
-- Purpose: Compare installed framework packages with the latest stable npm versions, including a required package that is absent. Compatible and major updates are reported separately. The command never edits dependency files, and it does not track conventions or workflows.
+- Purpose: `framework-check` compares installed framework packages with the latest stable npm versions, including a required package that is absent. Compatible and major updates are reported separately. `framework-setup` reads `framework.config.json`, validates the selected capabilities against `capabilities/manifest.json`, syncs Cursor standards, writes the static deploy caller, and reports unpublished packages. Both commands leave dependency files and application source unchanged.
 - Category: package
-- Location: `packages/dev-tools` (`@app-framework/dev-tools`, command `framework-check`)
+- Location: `packages/dev-tools` (`@app-framework/dev-tools`, commands `framework-check` and `framework-setup`)
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: After publication, bump the dev dependency. Run the command to see the report. Installing the new version remains a commit in the application.
+- Adoption: After publication, install the dev dependency and run `pnpm framework:setup`. Until publication, run `node packages/dev-tools/dist/setup-cli.js --cwd <application>` from a checkout after `pnpm build`. The report names unpublished packages and does not add them.
 - Dependencies: `semver`
 
 ### Lint and TypeScript presets
@@ -222,23 +231,23 @@ Use is **core** when every application should consider it, and **optional** when
 
 - Purpose: Shared guidance for naming, separation of concerns, TypeScript, code organisation, testing, and maintainability. Project-specific architecture stays in each application.
 - Category: standard
-- Location: `standards/cursor/` (`version.json` and `rules/`), copied by `scripts/sync-cursor-standards.mjs`
+- Location: `standards/cursor/` (`version.json` and `rules/`). `framework-setup` copies them. `scripts/sync-cursor-standards.mjs` is the same copy.
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: Run the sync script against the application and commit `.cursor/rules/framework/` plus `.cursor/framework-standards.json`. A later version is a bump of `version.json`, a rerun, and a commit. The sync does not rewrite application source. `framework-check` does not report this version.
-- Dependencies: the sync script. Not an npm package and not a remote Cursor rule import.
+- Adoption: `pnpm framework:setup` writes `.cursor/rules/framework/` and `.cursor/framework-standards.json` with the standards version and framework commit. A later version is a bump of `version.json`, a rerun, and a commit in the application. The copy replaces files directly inside `.cursor/rules/framework/` and leaves every other rule in place. `framework-setup --check` compares the installed version. `framework-check` does not report it.
+- Dependencies: none. The standards are files in this repository, copied into the application. They are not an npm package.
 
 ### Static deployment
 
-- Purpose: Publish a caller-supplied static directory, refuse a root account and environment files, switch the `current` symlink, and point `current` back at `previous` on rollback. The caller supplies the Node version file, install command, build command, output directory, and entry file. The Next.js profile passes `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`.
+- Purpose: Publish a caller-supplied static directory to `/all-apps/<repository-name>/releases/<sha>-<run id>-<run attempt>`, refuse a root account and environment files, switch the `current` symlink, and point `current` back at `previous` on rollback. The repository name comes from the GitHub repository that triggered the caller. The caller supplies the Node version file, install command, build command, output directory, and entry file. The Next.js profile passes `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. There is no Node.js server profile and no container profile.
 - Category: standard
-- Location: `.github/workflows/deploy-static.yml`, called at tag `deploy-static-v1` after that tag exists
+- Location: `.github/workflows/deploy-static.yml`, called as `Clain-Apps/App-Framework/.github/workflows/deploy-static.yml` at `main` or `deploy-static-vN`
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: After `deploy-static-v1` exists on the default branch, replace a copied workflow with a caller that passes the static profile, `rollback`, and the four secrets. Move that tag to adopt a compatible fix. A breaking caller contract uses a new tag. Until the tag exists, keep the working local workflow. The application does not copy the script.
-- Dependencies: secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS`, plus the caller's build profile. For the Next.js profile, `pnpm check` must write `out/index.html`.
+- Adoption: `framework-setup` writes a thin caller when the application does not already have `.github/workflows/deploy.yml`. Referencing `main` uses the protected default branch on the next run. Referencing `deploy-static-v1` stays on that tag until the tag moves. The application keeps the caller and the secrets. It does not keep a copy of this workflow. GitHub can run the caller after this file is on the default branch.
+- Dependencies: secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS`, plus the caller's build profile. For the Next.js profile, `pnpm check` must write `out/index.html`. The deploy account needs write access to `/all-apps/<repository-name>/`.
 
 ### Package release
 
@@ -248,7 +257,7 @@ Use is **core** when every application should consider it, and **optional** when
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: Applications do not call this workflow. They adopt a package by bumping a published version after `framework-check` reports it. Publication is blocked while `scopeConfirmed` is false.
+- Adoption: Applications do not call this workflow, and `framework-setup` rejects it in `framework.config.json`. They adopt a package by bumping a published version after `framework-check` reports it. Publication is blocked while `scopeConfirmed` is false.
 - Dependencies: Changesets
 
 ### CI pipeline
@@ -409,7 +418,7 @@ Use is **core** when every application should consider it, and **optional** when
 
 ### Server provisioning
 
-- Purpose: Host, TLS, reverse proxy, and process setup that turn a release directory into a served site. Copying files into `/root/apps` does not serve them.
+- Purpose: Host, TLS, reverse proxy, and process setup that turn a release directory into a served site. Copying files into `/all-apps/<repository-name>/` does not serve them.
 - Category: candidate
 - Location: no infrastructure repository yet
 - Status: deferred
