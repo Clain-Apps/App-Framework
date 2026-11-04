@@ -2,4 +2,4 @@
 "@app-framework/dev-tools": minor
 ---
 
-Pass the shared deploy host, user, and root into the generated static caller from organisation variables, and pass only the SSH key and known hosts as secrets.
+Support static, Node.js, and Next.js standalone deploy profiles in one shared workflow, default to /apps/<app-name>/, and write the caller only through framework deploy enable.

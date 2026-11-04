@@ -2,10 +2,11 @@
   "name": "@app-framework/dev-tools",
   "version": "0.1.0",
   "private": true,
-  "description": "Checks published App-Framework packages and sets up an application's selected capabilities.",
+  "description": "Adopts App-Framework in an application, reports integration status, and applies selected capabilities.",
   "type": "module",
   "license": "UNLICENSED",
   "bin": {
+    "framework": "./dist/framework-cli.js",
     "framework-check": "./dist/cli.js",
     "framework-setup": "./dist/setup-cli.js"
   },

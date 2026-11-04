@@ -2,12 +2,22 @@
   "contractVersion": 1,
   "repository": "Clain-Apps/App-Framework",
   "templateRepository": "Clain-Apps/App-Template",
-  "deployRoot": "/all-apps",
+  "deployRoot": "/apps",
   "profiles": [
     {
       "id": "static-web",
-      "purpose": "Build a static site and publish it under /all-apps/<repository-name>/.",
+      "purpose": "Build a static site and publish it under /apps/<app-name>/.",
       "limitations": "Publishes a static directory. Does not start a Node.js server or a container."
+    },
+    {
+      "id": "node-server",
+      "purpose": "Package a Node.js server, publish it under /apps/<app-name>/, restart a systemd unit, and health-check it.",
+      "limitations": "Does not provision Caddy or host routing. Requires systemd_unit and healthcheck_url. Application data stays in /apps/<app-name>/shared/."
+    },
+    {
+      "id": "next-standalone",
+      "purpose": "Package Next.js standalone output, publish it under /apps/<app-name>/, restart a systemd unit, and health-check it.",
+      "limitations": "Assembles standalone output plus static assets. Does not provision Caddy or host routing. Requires systemd_unit and healthcheck_url."
     }
   ],
   "capabilities": [
@@ -23,8 +33,8 @@
       "integration": "After publication, pnpm add @app-framework/ui. Import @app-framework/ui and @app-framework/ui/styles.css from a client component and call defineAppElements() inside useEffect.",
       "compatibility": {
         "node": ">=22",
-        "profiles": ["static-web"],
-        "notes": "Registry install waits until the npm scope is confirmed and this package is published."
+        "profiles": [],
+        "notes": "Any JavaScript application. Independent of the deploy profile. Registry install waits until the npm scope is confirmed and this package is published."
       },
       "enablement": "default-enabled",
       "selectable": true,
@@ -47,8 +57,8 @@
       "integration": "After publication, pnpm add @app-framework/app-config. Call defineConfig, loadConfig, and loadPublicConfig from application code.",
       "compatibility": {
         "node": ">=22",
-        "profiles": ["static-web"],
-        "notes": "Registry install waits until the npm scope is confirmed and this package is published."
+        "profiles": [],
+        "notes": "Any JavaScript application. Independent of the deploy profile. Registry install waits until the npm scope is confirmed and this package is published."
       },
       "enablement": "mandatory",
       "selectable": true,
@@ -62,17 +72,17 @@
     {
       "id": "dev-tools",
       "catalogue": "Framework update checker",
-      "purpose": "framework-check reports published framework package versions. framework-setup validates an application configuration and applies the capabilities that can be configured.",
+      "purpose": "framework doctor, adopt, modules, add, upgrade, and deploy enable manage integration. framework-check and framework-setup remain aliases.",
       "location": "packages/dev-tools",
       "type": "core",
       "version": "0.1.0",
       "dependencies": ["semver"],
       "configurationSchema": null,
-      "integration": "After publication, pnpm add -D @app-framework/dev-tools and add the script framework:setup. Until then, run the built CLI from a checkout of this repository.",
+      "integration": "After publication, pnpm add -D @app-framework/dev-tools and run framework adopt. Until then, run the built CLI from a checkout of this repository.",
       "compatibility": {
         "node": ">=22",
-        "profiles": ["static-web"],
-        "notes": "Registry install waits until the npm scope is confirmed and this package is published."
+        "profiles": [],
+        "notes": "Any JavaScript application. Independent of the deploy profile. Registry install waits until the npm scope is confirmed and this package is published."
       },
       "enablement": "default-enabled",
       "selectable": true,
@@ -92,11 +102,11 @@
       "version": "1.0.0",
       "dependencies": [],
       "configurationSchema": null,
-      "integration": "framework-setup copies standards/cursor/rules into .cursor/rules/framework and writes .cursor/framework-standards.json.",
+      "integration": "framework adopt and framework upgrade copy standards/cursor/rules into .cursor/rules/framework and write .cursor/framework-standards.json.",
       "compatibility": {
         "node": ">=22",
-        "profiles": ["static-web"],
-        "notes": "Rules outside .cursor/rules/framework stay in the application. The interface rule in this repository stays here."
+        "profiles": [],
+        "notes": "Any JavaScript application. Rules outside .cursor/rules/framework stay in the application. The interface rule in this repository stays here."
       },
       "enablement": "default-enabled",
       "selectable": true,
@@ -106,12 +116,12 @@
       }
     },
     {
-      "id": "deploy-static",
-      "catalogue": "Static deployment",
-      "purpose": "Publish a static directory to /all-apps/<repository-name>/ with versioned releases and rollback.",
-      "location": ".github/workflows/deploy-static.yml",
+      "id": "deploy",
+      "catalogue": "Application deployment",
+      "purpose": "Publish a versioned release to /apps/<app-name>/ with symlink activation, optional systemd restart, health checks, and rollback.",
+      "location": ".github/workflows/deploy.yml",
       "type": "standard",
-      "version": "deploy-static-v1",
+      "version": "deploy-v1",
       "dependencies": ["vars.VPS_HOST", "vars.VPS_USER", "vars.DEPLOY_ROOT", "VPS_SSH_KEY", "VPS_KNOWN_HOSTS"],
       "configurationSchema": {
         "type": "object",
@@ -119,7 +129,7 @@
         "properties": {
           "workflowRef": {
             "type": "string",
-            "pattern": "^(main|deploy-static-v[1-9][0-9]*)$"
+            "pattern": "^(main|deploy-v[1-9][0-9]*|deploy-static-v[1-9][0-9]*)$"
           },
           "deploy": {
             "type": "object",
@@ -129,20 +139,25 @@
               "installCommand": { "type": "string" },
               "buildCommand": { "type": "string" },
               "outputDirectory": { "type": "string" },
-              "entryFile": { "type": "string" }
+              "entryFile": { "type": "string" },
+              "appName": { "type": "string" },
+              "allowRoot": { "type": "boolean" },
+              "systemdUnit": { "type": "string" },
+              "healthcheckUrl": { "type": "string" },
+              "healthcheckTimeout": { "type": "string" }
             },
             "additionalProperties": false
           }
         },
         "additionalProperties": false
       },
-      "integration": "A caller uses workflow_call on Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main. It passes vars.VPS_HOST, vars.VPS_USER, and vars.DEPLOY_ROOT, plus secrets VPS_SSH_KEY and VPS_KNOWN_HOSTS. An optional deploy-static-vN pin stays on that tag. The implementation stays in this repository.",
+      "integration": "A caller uses workflow_call on Clain-Apps/App-Framework/.github/workflows/deploy.yml@deploy-v1 or @main. It passes vars.VPS_HOST, vars.VPS_USER, and vars.DEPLOY_ROOT, plus secrets VPS_SSH_KEY and VPS_KNOWN_HOSTS. deploy-static.yml@main is a static compatibility wrapper. The frozen tag deploy-static-v1 is not moved. framework deploy enable writes the caller; adopt does not.",
       "compatibility": {
         "node": ">=22",
-        "profiles": ["static-web"],
-        "notes": "Static files only. The workflow does not start a Node.js server or a container. Calling it requires the workflow file on the default branch."
+        "profiles": ["static-web", "node-server", "next-standalone"],
+        "notes": "Opt-in. Adoption does not write a caller. static-web publishes files. node-server and next-standalone restart a systemd unit and health-check it. Caddy stays outside this workflow."
       },
-      "enablement": "default-enabled",
+      "enablement": "opt-in",
       "selectable": true,
       "distribution": {
         "mechanism": "workflow-call",

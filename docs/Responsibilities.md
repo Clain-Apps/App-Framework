@@ -4,7 +4,7 @@ Who owns a change is defined in [`PROJECT-DEFINITION.md`](PROJECT-DEFINITION.md)
 
 ## App-Framework
 
-Recurring solutions with a stable contract live here: the three packages, Cursor standards, the static deployment workflow, and the capability manifest. Candidates live in [`REUSABLE_PATTERNS_CATALOGUE.md`](../REUSABLE_PATTERNS_CATALOGUE.md) until an implementation exists. Setup configures standards and the deploy caller. It leaves dependency files unchanged while the packages are unpublished.
+Recurring solutions with a stable contract live here: the three packages, Cursor standards, the application deployment workflow, and the capability manifest. Candidates live in [`REUSABLE_PATTERNS_CATALOGUE.md`](../REUSABLE_PATTERNS_CATALOGUE.md) until an implementation exists. The `framework` CLI configures standards. `framework deploy enable` writes the deploy caller as a separate operation. It leaves dependency files unchanged while the packages are unpublished.
 
 This repository is not a product, a landing page, or a host. It does not hold one product's business rules or the organisation's deploy credentials. Product secrets stay in the application.
 

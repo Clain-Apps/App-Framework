@@ -2,6 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import semver from "semver";
+import { loadCapabilityManifest } from "./capabilities.js";
+import { readConsumerConfig, selectCapabilities, selectedNpmPackages } from "./config.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -56,7 +58,7 @@ export async function checkFrameworkPackages(options: CheckOptions = {}): Promis
   if (!scopeResult.ok) return { exitCode: 1, lines: [scopeResult.message] };
   const scope = scopeResult.scope ?? (await readOwnScope());
 
-  const required = requiredResult.required;
+  const required = requiredPackages(cwd, requiredResult.required);
   const names = new Set<string>();
   for (const name of dependencyResult.names) {
     if (isFrameworkName(name, scope, required)) names.add(name);
@@ -119,6 +121,39 @@ export async function checkFrameworkPackages(options: CheckOptions = {}): Promis
   }
 
   return { exitCode: 0, lines };
+}
+
+export async function installedPackageVersion(cwd: string, name: string): Promise<string | undefined> {
+  return readInstalledVersion(cwd, name);
+}
+
+export async function latestPackageVersions(
+  names: readonly string[],
+  options: CheckOptions = {},
+): Promise<{ latest: Map<string, string>; registryFailed: boolean; usedCache: boolean }> {
+  const cwd = path.resolve(options.cwd ?? process.cwd());
+  return resolveLatestVersions(names, {
+    now: options.now ?? Date.now(),
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    cacheTtlMs: options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS,
+    noCache: options.noCache ?? false,
+    cachePath: options.cachePath ?? path.join(cwd, "node_modules", ".cache", "framework-check.json"),
+    registry: (options.registry ?? DEFAULT_REGISTRY).replace(/\/$/, ""),
+    fetchImpl: options.fetch ?? fetch,
+  });
+}
+
+function requiredPackages(cwd: string, fallback: ReadonlySet<string>): Set<string> {
+  const configFile = readConsumerConfig(cwd);
+  if (configFile.status !== "ok") return new Set(fallback);
+  try {
+    const loaded = loadCapabilityManifest();
+    const selection = selectCapabilities(loaded.manifest, configFile.config);
+    if (selection.errors.length > 0) return new Set(fallback);
+    return new Set(selectedNpmPackages(loaded.manifest, selection.selected).map((entry) => entry.packageName));
+  } catch {
+    return new Set(fallback);
+  }
 }
 
 async function resolveLatestVersions(

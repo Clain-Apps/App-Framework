@@ -8,15 +8,15 @@ It exists so an improvement is made once, in one repository, and existing and fu
 
 - The same interface elements, environment parsing, and version check were being rewritten in each application.
 - Cursor guidance drifted because each repository kept its own copy of the rules.
-- Static deployment logic was copied into application workflows, including the release directory layout and rollback.
+- Deployment logic was copied into application workflows, including the release directory layout and rollback.
 - A written idea for a shared capability was easy to mistake for something an application could already install.
 
 ## What belongs here
 
 - Reusable packages with a small public contract: `@app-framework/ui`, `@app-framework/app-config`, and `@app-framework/dev-tools`.
-- Shared standards and workflows that are not packages: Cursor rules in `standards/cursor`, and the static deployment workflow.
+- Shared standards and workflows that are not packages: Cursor rules in `standards/cursor`, and the application deployment workflow.
 - The capability contract in [`capabilities/manifest.json`](../capabilities/manifest.json), and the human inventory in [`REUSABLE_PATTERNS_CATALOGUE.md`](../REUSABLE_PATTERNS_CATALOGUE.md).
-- `framework-setup`, the command an application runs to validate its selection and apply the capabilities that have a working distribution mechanism.
+- `framework`, the command an application runs to adopt the framework, inspect integration, list and add implemented capabilities, and apply selected updates. `framework-setup` and `framework-check` remain aliases.
 - This repository's own CI and package release workflow.
 
 Every pattern belongs to one class:
@@ -45,10 +45,12 @@ Product screens, data, business rules, and the choice of which optional capabili
 The application commits `framework.config.json` and, once `@app-framework/dev-tools` is published, runs:
 
 ```bash
-pnpm framework:setup
+pnpm framework adopt
 ```
 
-Setup reads that file, checks the requested capabilities against the manifest, resolves their dependencies, and applies the distribution mechanism each capability actually has. Today that means copying Cursor standards and writing the static deploy caller. The npm packages have no registry release, so setup reports them and leaves `package.json` unchanged. The steps, the configuration file, and the caller are in [`consumer-contract.md`](consumer-contract.md).
+An existing application that already has a `package.json` uses the same command. Adopt does not copy the Next.js starter, rewrite product code, or write a deploy caller.
+
+The CLI reads `framework.config.json`, checks the requested capabilities against the manifest, resolves their dependencies, and applies the distribution mechanism each capability actually has. Today that means copying Cursor standards. Writing a deploy caller is a separate `framework deploy enable` step. The npm packages have no registry release, so the CLI reports them and does not pretend they are installed. The steps, the configuration file, and the caller are in [`consumer-contract.md`](consumer-contract.md).
 
 Authoritative implementations stay in this repository. Setup does not copy package source into the application.
 
@@ -56,35 +58,38 @@ Authoritative implementations stay in this repository. Setup does not copy packa
 
 An application changes only when someone updates that application.
 
-- A package update is a new published version, then a dependency and lockfile change in the application. `framework-check` reports the difference and does not edit files. Nothing is published while `scopeConfirmed` is false in [`framework.scope.json`](../framework.scope.json).
-- A standards update is a new `standards/cursor/version.json`, then `framework-setup` (or `framework-setup --check` to compare) in the application, then a commit of `.cursor/rules/framework` and `.cursor/framework-standards.json`. The pin records the standards version and the framework commit.
-- A deployment update follows the caller's workflow ref. `main` runs the workflow on the protected default branch, so a reviewed fix applies on the next deploy without editing the caller. `deploy-static-v1` stays on that tag until someone moves it. The trade-off is in the consumer contract.
+- A package update is a new published version, then a dependency and lockfile change in the application. `framework doctor` and `framework-check` report the difference. `framework upgrade` applies compatible updates when the package is available, and does not apply a major update. Nothing is published while `scopeConfirmed` is false in [`framework.scope.json`](../framework.scope.json).
+- A standards update is a new `standards/cursor/version.json`, then `framework upgrade` (or `framework upgrade --check` to compare) in the application, then a commit of `.cursor/rules/framework` and `.cursor/framework-standards.json`. The pin records the standards version and the framework commit.
+- A deployment update follows the caller's workflow ref. `main` runs the workflow on the protected default branch, so a reviewed fix applies on the next deploy without editing the caller. `deploy-v1` stays on that tag until the application moves the ref. `deploy-static-v1` is not moved. The trade-off is in the consumer contract.
 
 Publishing, syncing, or moving a ref does not rewrite an application's product source.
 
 ## Implemented and planned
 
-Implemented and selectable for the `static-web` profile:
+Implemented and selectable for any JavaScript application:
 
 - `@app-framework/ui`, `@app-framework/app-config`, and `@app-framework/dev-tools` (source is here; registry install is blocked)
 - Cursor standards in `standards/cursor`
-- Static deployment to `/all-apps/<repository-name>/`, with versioned release directories and rollback. `DEPLOY_ROOT` supplies `/all-apps`, and the directory name is the calling repository.
+
+Implemented and selectable when a deploy profile is chosen and `framework deploy enable` is run:
+
+- Application deployment to `/apps/<app-name>/`, with versioned release directories, symlink activation, and rollback. Profiles are `static-web`, `node-server`, and `next-standalone`. `DEPLOY_ROOT` supplies `/apps`. `app-name` may be set independently of the GitHub repository.
 
 Implemented and not selectable by an application:
 
 - Package release through Changesets and `.github/workflows/release.yml`
 
-Planned only as catalogue entries: lint presets, database access, identity, billing, a Node.js server deploy profile, containers, and the rest of the candidate list. Those rows are not packages, and setup rejects their names.
+Planned only as catalogue entries: lint presets, database access, identity, billing, containers, and the rest of the candidate list. Those rows are not packages, and setup rejects their names.
 
-The static profile builds a directory of files. It does not start a Node.js server and it does not build a container image.
+The static profile builds a directory of files. Server profiles restart a systemd unit and health-check it. None of the profiles build a container image.
 
 ## Distribution
 
 | Capability | Mechanism | Current state |
 | --- | --- | --- |
 | npm packages | registry | Unpublished. `scopeConfirmed` is false. An anonymous lookup on 26 October 2026 returned HTTP 404 for all three names. A 404 does not show who owns `@app-framework`. |
-| Cursor standards | file copy | Available from a checkout, and from the `framework-setup` command. |
-| Static deployment | `workflow_call` | The workflow file is in this repository. Another repository can call it after the file is on the default branch of `Clain-Apps/App-Framework`. |
+| Cursor standards | file copy | Available from a checkout, and from `framework adopt` / `framework upgrade`. |
+| Application deployment | `workflow_call` | The workflow file is in this repository. Another repository can call it after the file is on the default branch of `Clain-Apps/App-Framework`. |
 | Package release | this repository's release workflow | Skipped until the scope is confirmed. The manual publication steps are in [`architecture.md`](architecture.md). |
 
-Setup can show the plan before it writes files: `framework-setup --dry-run`. Running it again applies the same standards and the same managed caller, and it leaves application source and application-owned workflows in place.
+The CLI can show the plan before it writes files: `framework adopt --dry-run`. Running it again applies the same standards and leaves application source and application-owned workflows in place. `framework deploy enable --dry-run` reports caller conflicts without writing.

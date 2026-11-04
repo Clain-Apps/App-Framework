@@ -1,11 +1,8 @@
-# Reusable static-site release.
-# Callers use Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main.
-# A change on main applies on the next deploy. Callers do not copy this file.
-# The application directory is <deploy_root>/<repository-name>/.
-# Clain-Apps sets the organisation variable DEPLOY_ROOT to /all-apps.
-# The repository name comes from the caller. No other directory is moved or deleted.
-# There is no Node.js server profile and no container profile.
-# The Next.js static profile is documented in docs/consumer-contract.md.
+# Compatibility wrapper for callers that still use deploy-static.yml.
+# Frozen tag deploy-static-v1 is not moved. New production callers should pin
+# Clain-Apps/App-Framework/.github/workflows/deploy.yml@deploy-v1.
+# Nested reusable workflows resolve a relative path against the caller, so this
+# wrapper always calls the Framework repository by name.
 name: Deploy static site
 
 on:
@@ -16,13 +13,23 @@ on:
         required: true
         type: string
       vps_user:
-        description: Non-root SSH account
+        description: SSH account. Non-root unless allow_root is true.
         required: true
         type: string
       deploy_root:
-        description: Absolute parent directory. Clain-Apps uses /all-apps.
+        description: Absolute parent directory. Clain-Apps uses /apps.
         required: true
         type: string
+      app_name:
+        description: Directory name under deploy_root. Defaults to the repository name.
+        required: false
+        type: string
+        default: ""
+      allow_root:
+        description: Permit an explicitly configured root SSH account
+        required: false
+        type: boolean
+        default: false
       rollback:
         description: Repoint current at the previous release
         required: false
@@ -37,15 +44,15 @@ on:
         required: true
         type: string
       build_command:
-        description: Single-line command that writes the static directory
+        description: Single-line command that writes the release directory
         required: true
         type: string
       output_directory:
-        description: Relative directory that contains the static site
+        description: Relative directory uploaded as the release
         required: true
         type: string
       entry_file:
-        description: Relative entry file that must exist in the static directory
+        description: Relative entry file that must exist in the release directory
         required: true
         type: string
     secrets:
@@ -57,503 +64,22 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-${{ github.repository }}
-  cancel-in-progress: false
-
 jobs:
   deploy:
-    if: github.repository != 'Clain-Apps/App-Template' && github.repository != 'Clain-Apps/App-Framework'
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      VPS_HOST: ${{ inputs.vps_host }}
-      VPS_USER: ${{ inputs.vps_user }}
-      DEPLOY_ROOT: ${{ inputs.deploy_root }}
+    uses: Clain-Apps/App-Framework/.github/workflows/deploy.yml@main
+    with:
+      profile: static
+      vps_host: ${{ inputs.vps_host }}
+      vps_user: ${{ inputs.vps_user }}
+      deploy_root: ${{ inputs.deploy_root }}
+      app_name: ${{ inputs.app_name }}
+      allow_root: ${{ inputs.allow_root }}
+      rollback: ${{ inputs.rollback }}
+      node_version_file: ${{ inputs.node_version_file }}
+      install_command: ${{ inputs.install_command }}
+      build_command: ${{ inputs.build_command }}
+      output_directory: ${{ inputs.output_directory }}
+      entry_file: ${{ inputs.entry_file }}
+    secrets:
       VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
       VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-    steps:
-      - name: Write the release rules
-        shell: bash
-        run: |
-          cat > "$RUNNER_TEMP/static-release.sh" <<'END_RELEASE_SCRIPT'
-          # BEGIN release-rules
-          set -euo pipefail
-
-          require_account() {
-            local host="${VPS_HOST:-}"
-            local user="${VPS_USER:-}"
-            if [[ -z "${host}" || -z "${user}" ]]; then
-              echo "Set vps_host and vps_user." >&2
-              return 1
-            fi
-            if [[ ! "${host}" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; then
-              echo "vps_host is not a hostname." >&2
-              return 1
-            fi
-            if [[ "${user}" == "root" ]]; then
-              echo "Refusing to deploy as root." >&2
-              return 1
-            fi
-            if [[ ! "${user}" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
-              echo "vps_user must be a non-root account name." >&2
-              return 1
-            fi
-          }
-
-          require_relative_entry() {
-            local entry="$1"
-            if [[ ! "${entry}" =~ ^[A-Za-z0-9._/-]+$ || "${entry}" == *..* || "${entry}" == /* || "${entry}" == "." || "${entry}" == */ ]]; then
-              echo "Entry file must be a relative path." >&2
-              return 1
-            fi
-          }
-
-          require_app_root() {
-            local app_root="$1"
-            if [[ ! "${app_root}" =~ ^(/[A-Za-z0-9._-]+)+$ || "${app_root}" == *".."* || -L "${app_root}" ]]; then
-              echo "Application path is not safe." >&2
-              return 1
-            fi
-          }
-
-          release_paths() {
-            local deploy_root="${DEPLOY_ROOT:-}"
-            local repository="${GITHUB_REPOSITORY:-}"
-            local sha="${GITHUB_SHA:-}"
-            local run_id="${GITHUB_RUN_ID:-}"
-            local run_attempt="${GITHUB_RUN_ATTEMPT:-}"
-
-            if [[ ! "${deploy_root}" =~ ^(/[A-Za-z0-9._-]+)+$ || "${deploy_root}" == *".."* ]]; then
-              echo "deploy_root must be an absolute directory of safe segments." >&2
-              return 1
-            fi
-            case "${deploy_root}" in
-              */releases|*/releases/*|*/current|*/current/*|*/previous|*/previous/*)
-                echo "deploy_root must be the shared parent directory." >&2
-                return 1
-                ;;
-            esac
-
-            local name="${repository#*/}"
-            if [[ "${repository}" != */* || "${name}" == */* || "${name}" == "${repository}" ]]; then
-              echo "Repository name must come from owner/name." >&2
-              return 1
-            fi
-            if [[ ! "${name}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$ ]]; then
-              echo "Repository name must be one safe path segment." >&2
-              return 1
-            fi
-
-            local release_id="${sha}-${run_id}-${run_attempt}"
-            if [[ ! "${release_id}" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
-              echo "Release id is not safe." >&2
-              return 1
-            fi
-
-            local app_root="${deploy_root}/${name}"
-            local destination="${app_root}/releases/${release_id}"
-            case "${destination}" in
-              "${deploy_root}/${name}/releases/${release_id}") ;;
-              *)
-                echo "Refusing an unexpected release path." >&2
-                return 1
-                ;;
-            esac
-
-            printf 'app_root=%s\n' "${app_root}"
-            printf 'destination=%s\n' "${destination}"
-            printf 'release_id=%s\n' "${release_id}"
-            printf 'app_name=%s\n' "${name}"
-          }
-
-          activation_plan() {
-            local current_state="$1"
-            local current_target="$2"
-            local release_id="$3"
-            if [[ ! "${release_id}" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
-              echo "Release id is not safe." >&2
-              return 1
-            fi
-            if [[ "${current_state}" == "other" ]]; then
-              echo "Refusing to replace current because it is not a symlink." >&2
-              return 1
-            fi
-            if [[ "${current_state}" == "link" ]]; then
-              if [[ ! "${current_target}" =~ ^releases/[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
-                echo "Existing current symlink is not a release path." >&2
-                return 1
-              fi
-              printf 'previous=%s\n' "${current_target}"
-            elif [[ "${current_state}" != "missing" ]]; then
-              echo "Current release state is not recognised." >&2
-              return 1
-            fi
-            printf 'current=releases/%s\n' "${release_id}"
-          }
-
-          rollback_plan() {
-            local previous_state="$1"
-            local previous_target="$2"
-            local entry_present="$3"
-            local current_state="$4"
-            if [[ "${previous_state}" == "other" ]]; then
-              echo "Refusing to follow previous because it is not a symlink." >&2
-              return 1
-            fi
-            if [[ "${previous_state}" != "link" ]]; then
-              echo "No previous release is recorded." >&2
-              return 1
-            fi
-            if [[ ! "${previous_target}" =~ ^releases/[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
-              echo "Previous symlink is not a release path." >&2
-              return 1
-            fi
-            if [[ "${entry_present}" != "yes" ]]; then
-              echo "Previous release has no entry file." >&2
-              return 1
-            fi
-            if [[ "${current_state}" == "other" ]]; then
-              echo "Refusing to replace current because it is not a symlink." >&2
-              return 1
-            fi
-            if [[ "${current_state}" != "link" && "${current_state}" != "missing" ]]; then
-              echo "Current release state is not recognised." >&2
-              return 1
-            fi
-            printf 'current=%s\n' "${previous_target}"
-          }
-
-          apply_activation() {
-            local app_root="${APP_ROOT:?}"
-            local release_id="${RELEASE_ID:?}"
-            local entry="${ENTRY_FILE:?}"
-            require_app_root "${app_root}" || return 1
-            require_relative_entry "${entry}" || return 1
-            local current="${app_root}/current"
-            local previous="${app_root}/previous"
-            local state="missing"
-            local target=""
-            if [[ -L "${current}" ]]; then
-              state="link"
-              target="$(readlink "${current}")"
-            elif [[ -e "${current}" ]]; then
-              state="other"
-            fi
-            local plan
-            plan="$(activation_plan "${state}" "${target}" "${release_id}")" || return 1
-            local previous_target=""
-            local current_target=""
-            local line
-            while IFS= read -r line; do
-              case "${line}" in
-                previous=releases/*) previous_target="${line#previous=}" ;;
-                current=releases/*) current_target="${line#current=}" ;;
-                *)
-                  echo "Unexpected activation plan." >&2
-                  return 1
-                  ;;
-              esac
-            done <<<"${plan}"
-            if [[ -z "${current_target}" ]]; then
-              echo "Activation plan was incomplete." >&2
-              return 1
-            fi
-            if [[ -n "${previous_target}" ]]; then
-              ln -sfn "${previous_target}" "${previous}"
-            fi
-            ln -sfn "${current_target}" "${current}"
-            test -s "${current}/${entry}"
-          }
-
-          apply_rollback() {
-            local app_root="${APP_ROOT:?}"
-            local entry="${ENTRY_FILE:?}"
-            require_app_root "${app_root}" || return 1
-            require_relative_entry "${entry}" || return 1
-            local current="${app_root}/current"
-            local previous="${app_root}/previous"
-            local previous_state="missing"
-            local previous_target=""
-            if [[ -L "${previous}" ]]; then
-              previous_state="link"
-              previous_target="$(readlink "${previous}")"
-            elif [[ -e "${previous}" ]]; then
-              previous_state="other"
-            fi
-            local current_state="missing"
-            if [[ -L "${current}" ]]; then
-              current_state="link"
-            elif [[ -e "${current}" ]]; then
-              current_state="other"
-            fi
-            local entry_present="no"
-            if [[ -n "${previous_target}" && -s "${app_root}/${previous_target}/${entry}" ]]; then
-              entry_present="yes"
-            fi
-            local plan
-            plan="$(rollback_plan "${previous_state}" "${previous_target}" "${entry_present}" "${current_state}")" || return 1
-            local current_target=""
-            local line
-            while IFS= read -r line; do
-              case "${line}" in
-                current=releases/*) current_target="${line#current=}" ;;
-                *)
-                  echo "Unexpected rollback plan." >&2
-                  return 1
-                  ;;
-              esac
-            done <<<"${plan}"
-            if [[ -z "${current_target}" ]]; then
-              echo "Rollback plan was incomplete." >&2
-              return 1
-            fi
-            ln -sfn "${current_target}" "${current}"
-            test -s "${current}/${entry}"
-          }
-
-          case "${RELEASE_COMMAND:-}" in
-            plan) release_paths ;;
-            activate) apply_activation ;;
-            rollback) apply_rollback ;;
-            plan-activation) activation_plan "${CURRENT_STATE:?}" "${CURRENT_TARGET:-}" "${RELEASE_ID:?}" ;;
-            plan-rollback) rollback_plan "${PREVIOUS_STATE:?}" "${PREVIOUS_TARGET:-}" "${ENTRY_PRESENT:?}" "${CURRENT_STATE:?}" ;;
-            require-account) require_account ;;
-            "") ;;
-            *)
-              echo "Unknown release command." >&2
-              exit 1
-              ;;
-          esac
-          # END release-rules
-          END_RELEASE_SCRIPT
-
-      - name: Require the deploy account
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${VPS_SSH_KEY}" || { echo "Set the VPS_SSH_KEY secret."; exit 1; }
-          test -n "${VPS_KNOWN_HOSTS}" || { echo "Set the VPS_KNOWN_HOSTS secret."; exit 1; }
-          RELEASE_COMMAND=require-account bash "$RUNNER_TEMP/static-release.sh"
-
-      - name: Resolve the application directory
-        shell: bash
-        run: |
-          set -euo pipefail
-          app_root=""
-          destination=""
-          release_id=""
-          app_name=""
-          while IFS= read -r line; do
-            case "${line}" in
-              app_root=/*) app_root="${line#app_root=}" ;;
-              destination=/*) destination="${line#destination=}" ;;
-              release_id=*) release_id="${line#release_id=}" ;;
-              app_name=*) app_name="${line#app_name=}" ;;
-              *)
-                echo "Unexpected plan output."
-                exit 1
-                ;;
-            esac
-          done < <(RELEASE_COMMAND=plan bash "$RUNNER_TEMP/static-release.sh")
-          expected_name="${GITHUB_REPOSITORY#*/}"
-          if [[ -z "${app_root}" || -z "${destination}" || -z "${release_id}" || "${app_name}" != "${expected_name}" ]]; then
-            echo "Release plan was incomplete."
-            exit 1
-          fi
-          if [[ "${app_root}" != "${DEPLOY_ROOT}/${expected_name}" || "${destination}" != "${app_root}/releases/${release_id}" ]]; then
-            echo "Refusing an unexpected release path."
-            exit 1
-          fi
-          {
-            printf 'APP_ROOT=%s\n' "${app_root}"
-            printf 'RELEASE_DEST=%s\n' "${destination}"
-            printf 'RELEASE_ID=%s\n' "${release_id}"
-            printf 'APP_NAME=%s\n' "${app_name}"
-          } >> "$GITHUB_ENV"
-          echo "Application directory is ${app_root}"
-
-      - name: Check the static profile
-        if: inputs.rollback == false
-        shell: bash
-        env:
-          NODE_VERSION_FILE: ${{ inputs.node_version_file }}
-          INSTALL_COMMAND: ${{ inputs.install_command }}
-          BUILD_COMMAND: ${{ inputs.build_command }}
-          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
-          ENTRY_FILE: ${{ inputs.entry_file }}
-        run: |
-          set -euo pipefail
-          single_line() {
-            local name="$1"
-            local value="$2"
-            if [[ -z "${value}" || "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
-              echo "${name} must be one non-empty line."
-              exit 1
-            fi
-          }
-          relative_path() {
-            local name="$1"
-            local value="$2"
-            if [[ ! "${value}" =~ ^[A-Za-z0-9._/-]+$ || "${value}" == *..* || "${value}" == /* || "${value}" == "." || "${value}" == */ ]]; then
-              echo "${name} must be a relative path."
-              exit 1
-            fi
-          }
-          single_line "install_command" "${INSTALL_COMMAND}"
-          single_line "build_command" "${BUILD_COMMAND}"
-          relative_path "node_version_file" "${NODE_VERSION_FILE}"
-          relative_path "output_directory" "${OUTPUT_DIRECTORY}"
-          relative_path "entry_file" "${ENTRY_FILE}"
-
-      - name: Checkout
-        if: inputs.rollback == false
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository }}
-          ref: ${{ github.sha }}
-
-      - name: Install pnpm
-        if: inputs.rollback == false
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node.js
-        if: inputs.rollback == false
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ${{ inputs.node_version_file }}
-          cache: pnpm
-
-      - name: Install dependencies
-        if: inputs.rollback == false
-        shell: bash
-        env:
-          INSTALL_COMMAND: ${{ inputs.install_command }}
-        run: bash --noprofile --norc -c "${INSTALL_COMMAND}"
-
-      - name: Validate and build
-        if: inputs.rollback == false
-        shell: bash
-        env:
-          BUILD_COMMAND: ${{ inputs.build_command }}
-        run: bash --noprofile --norc -c "${BUILD_COMMAND}"
-
-      - name: Check the static export
-        if: inputs.rollback == false
-        shell: bash
-        env:
-          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
-          ENTRY_FILE: ${{ inputs.entry_file }}
-        run: |
-          set -euo pipefail
-          test -s "${OUTPUT_DIRECTORY}/${ENTRY_FILE}"
-          if [[ -e "${OUTPUT_DIRECTORY}/node_modules" || -e "${OUTPUT_DIRECTORY}/.git" || -e "${OUTPUT_DIRECTORY}/.github" ]]; then
-            echo "Refusing to deploy development files."
-            exit 1
-          fi
-          if find "${OUTPUT_DIRECTORY}" \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
-            echo "Refusing to deploy environment files."
-            exit 1
-          fi
-
-      - name: Configure SSH
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${VPS_SSH_KEY}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "${VPS_KNOWN_HOSTS}" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-          ssh-keygen -lf ~/.ssh/known_hosts >/dev/null
-
-      - name: Confirm the remote account
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
-          remote_user="$(${ssh_command} "${VPS_USER}@${VPS_HOST}" "id -un")"
-          if [[ "${remote_user}" == "root" || "${remote_user}" != "${VPS_USER}" ]]; then
-            echo "Refusing to deploy as root."
-            exit 1
-          fi
-
-      # Create only <deploy_root>/<repository-name>/releases/<id>. Leave every other directory alone.
-      - name: Publish the release
-        if: inputs.rollback == false
-        shell: bash
-        env:
-          OUTPUT_DIRECTORY: ${{ inputs.output_directory }}
-          ENTRY_FILE: ${{ inputs.entry_file }}
-        run: |
-          set -euo pipefail
-          expected_name="${GITHUB_REPOSITORY#*/}"
-          if [[ "${APP_NAME}" != "${expected_name}" || "${APP_ROOT}" != "${DEPLOY_ROOT}/${expected_name}" || "${RELEASE_DEST}" != "${APP_ROOT}/releases/${RELEASE_ID}" ]]; then
-            echo "Refusing an unexpected release path."
-            exit 1
-          fi
-
-          ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
-          remote="${VPS_USER}@${VPS_HOST}"
-          rsync_ssh="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
-
-          remove_failed_release() {
-            ${ssh_command} "${remote}" "bash -s" <<EOF
-          set -euo pipefail
-          destination=$(printf '%q' "${RELEASE_DEST}")
-          app_root=$(printf '%q' "${APP_ROOT}")
-          case "\${destination}" in
-            "\${app_root}/releases/"*) ;;
-            *)
-              echo "Refusing to delete an unexpected path."
-              exit 1
-              ;;
-          esac
-          rm -rf -- "\${destination}"
-          EOF
-          }
-
-          if ! ${ssh_command} "${remote}" "mkdir -p -- $(printf '%q' "${RELEASE_DEST}")"; then
-            echo "Could not create the release directory."
-            exit 1
-          fi
-
-          if ! rsync -az --delete \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude 'node_modules' \
-            --exclude '.env' \
-            --exclude '.env.*' \
-            -e "${rsync_ssh}" "${OUTPUT_DIRECTORY}/" "${remote}:${RELEASE_DEST}/"; then
-            remove_failed_release || true
-            exit 1
-          fi
-
-          if ! ${ssh_command} "${remote}" "RELEASE_COMMAND=activate APP_ROOT=$(printf '%q' "${APP_ROOT}") RELEASE_ID=$(printf '%q' "${RELEASE_ID}") ENTRY_FILE=$(printf '%q' "${ENTRY_FILE}") bash -s" < "$RUNNER_TEMP/static-release.sh"; then
-            remove_failed_release || true
-            exit 1
-          fi
-
-      - name: Roll back to the previous release
-        if: inputs.rollback
-        shell: bash
-        env:
-          ENTRY_FILE: ${{ inputs.entry_file }}
-        run: |
-          set -euo pipefail
-          expected_name="${GITHUB_REPOSITORY#*/}"
-          if [[ "${APP_NAME}" != "${expected_name}" || "${APP_ROOT}" != "${DEPLOY_ROOT}/${expected_name}" ]]; then
-            echo "Refusing an unexpected application path."
-            exit 1
-          fi
-          ssh_command="ssh -i ${HOME}/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${HOME}/.ssh/known_hosts -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=10"
-          remote="${VPS_USER}@${VPS_HOST}"
-          ${ssh_command} "${remote}" "RELEASE_COMMAND=rollback APP_ROOT=$(printf '%q' "${APP_ROOT}") ENTRY_FILE=$(printf '%q' "${ENTRY_FILE}") bash -s" < "$RUNNER_TEMP/static-release.sh"
-
-      - name: Remove the SSH key
-        if: always()
-        shell: bash
-        run: rm -f ~/.ssh/deploy_key

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -39,13 +40,18 @@ describe("published build artifacts", () => {
     const setupCli = await readFile(path.join(packageDir, "dist/setup-cli.js"), "utf8");
     expect(cli.startsWith("#!/usr/bin/env node")).toBe(true);
     expect(setupCli.startsWith("#!/usr/bin/env node")).toBe(true);
+    const frameworkCli = await readFile(path.join(packageDir, "dist/framework-cli.js"), "utf8");
+    expect(frameworkCli.startsWith("#!/usr/bin/env node")).toBe(true);
     const declaration = await readFile(path.join(packageDir, "dist/index.d.ts"), "utf8");
     expect(declaration).toContain("checkFrameworkPackages");
     expect(declaration).toContain("runSetup");
+    expect(declaration).toContain("runAdopt");
+    expect(declaration).toContain("runDoctor");
 
     const packed = await packFiles(packageDir);
     expect(packed).toContain("dist/cli.js");
     expect(packed).toContain("dist/setup-cli.js");
+    expect(packed).toContain("dist/framework-cli.js");
     expect(packed).toContain("dist/index.d.ts");
     expect(packed).toContain("dist/consumer/manifest.json");
     expect(packed).toContain("dist/consumer/source.json");
@@ -102,6 +108,10 @@ describe("published build artifacts", () => {
     expect(listed.code).toBe(0);
     expect(listed.stdout).toContain("cursor-standards");
     expect(listed.stdout).toContain("unpublished");
+
+    const modules = await runNode([path.join(packageDir, "dist/framework-cli.js"), "modules"]);
+    expect(modules.code).toBe(0);
+    expect(modules.stdout).toContain("cursor-standards");
   });
 
   it("ships the ui entry and tag stylesheet", async () => {
@@ -120,8 +130,7 @@ describe("published build artifacts", () => {
 });
 
 async function packFiles(cwd: string): Promise<string[]> {
-  const npmCli = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
-  const result = await run(process.execPath, [npmCli, "pack", "--dry-run", "--json"], cwd);
+  const result = await run(process.execPath, [resolveNpmCli(), "pack", "--dry-run", "--json"], cwd);
   const start = result.stdout.indexOf("[");
   const end = result.stdout.lastIndexOf("]");
   if (start === -1 || end === -1) throw new Error(result.stdout || result.stderr);
@@ -129,6 +138,21 @@ async function packFiles(cwd: string): Promise<string[]> {
   if (!Array.isArray(parsed)) throw new Error("npm pack did not return a package list");
   const first = parsed[0] as { files?: Array<{ path: string }> };
   return (first.files ?? []).map((file) => file.path.replaceAll("\\", "/"));
+}
+
+function resolveNpmCli(): string {
+  const execDir = path.dirname(process.execPath);
+  const candidates = [
+    path.join(execDir, "node_modules", "npm", "bin", "npm-cli.js"),
+    path.join(execDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    path.join(execDir, "npm-cli.js"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(
+    `Could not locate npm-cli.js next to ${process.execPath}. Checked ${candidates.join(", ")}.`,
+  );
 }
 
 function run(command: string, args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {

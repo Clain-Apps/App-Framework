@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,6 +7,7 @@ import { parse } from "yaml";
 import { loadCapabilityManifest, readSourceCommit } from "../src/capabilities.js";
 import { packageSetupStatus, renderDeployCaller, runSetup } from "../src/setup.js";
 import { runSetupCli } from "../src/setup-cli.js";
+import { syncCursorStandards } from "../src/standards.js";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 
@@ -83,25 +83,21 @@ describe("framework-setup", () => {
         "  profile  static-web",
         "  app-config  blocked  @app-framework/app-config@0.1.0 is unpublished. No dependency was added.",
         "  cursor-standards  write  .cursor/rules/framework version 1.0.0",
-        "  deploy-static  write  .github/workflows/deploy.yml ref main. Actions can call it after that ref is on GitHub.",
+        "  deploy  pending  Run framework deploy enable to write .github/workflows/deploy.yml. Adoption does not deploy.",
         "  dev-tools  blocked  @app-framework/dev-tools@0.1.0 is unpublished and requires semver. No dependency was added.",
         "  ui  blocked  @app-framework/ui@0.1.0 is unpublished. No dependency was added.",
       ]);
 
       const rules = ruleNames().map((name) => `.cursor/rules/framework/${name}`);
       expect(listFiles(cwd)).toEqual(
-        [".cursor/framework-standards.json", ...rules, ".cursor/rules/product.mdc", ".github/workflows/deploy.yml", "README.md", "framework.config.json", "package.json", "src/app.ts"].sort(),
+        [".cursor/framework-standards.json", ...rules, ".cursor/rules/product.mdc", "README.md", "framework.config.json", "package.json", "src/app.ts"].sort(),
       );
       expect(readFileSync(path.join(cwd, "package.json"), "utf8")).toBe(manifestBefore);
       expect(readFileSync(path.join(cwd, "src", "app.ts"), "utf8")).toBe(sourceBefore);
       expect(readFileSync(path.join(cwd, ".cursor", "rules", "product.mdc"), "utf8")).toBe("product\n");
       expect(listFiles(cwd).some((file) => file.startsWith("packages/"))).toBe(false);
 
-      const caller = readFileSync(path.join(cwd, ".github", "workflows", "deploy.yml"), "utf8");
-      expect(caller.startsWith("# managed-by: @app-framework/dev-tools deploy-static\n")).toBe(true);
-      expect(caller).toContain("uses: Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main");
-      expect(caller).not.toContain("rsync");
-      expect(caller).not.toContain("/all-apps");
+      expect(existsDirectory(path.join(cwd, ".github"))).toBe(false);
       const pin = JSON.parse(readFileSync(path.join(cwd, ".cursor", "framework-standards.json"), "utf8")) as {
         version: string;
         source: string;
@@ -116,7 +112,7 @@ describe("framework-setup", () => {
       expect(again.wrote).toBe(false);
       expect(again.lines).toContain("  cursor-standards  unchanged  version 1.0.0");
       expect(again.lines).toContain(
-        "  deploy-static  unchanged  .github/workflows/deploy.yml ref main. Actions can call it after that ref is on GitHub.",
+        "  deploy  pending  Run framework deploy enable to write .github/workflows/deploy.yml. Adoption does not deploy.",
       );
       expect(again.lines.some((line) => line.includes("  write  ") || line.includes("  delete  "))).toBe(false);
     } finally {
@@ -124,25 +120,19 @@ describe("framework-setup", () => {
     }
   });
 
-  it("copies the same standards as the direct sync script", () => {
+  it("copies the same standards as the shared sync function", () => {
     const left = writeApp({
-      profile: "static-web",
       capabilities: {
         "app-config": true,
         ui: false,
         "dev-tools": false,
         "cursor-standards": true,
-        "deploy-static": false,
       },
     });
     const right = mkdtempSync(path.join(tmpdir(), "framework-sync-"));
     try {
       expect(runSetup({ cwd: left }).exitCode).toBe(0);
-      const synced = spawnSync("node", ["scripts/sync-cursor-standards.mjs", "--target", right], {
-        cwd: root,
-        encoding: "utf8",
-      });
-      expect(synced.status).toBe(0);
+      syncCursorStandards(right);
       for (const name of ruleNames()) {
         expect(readFileSync(path.join(left, ".cursor", "rules", "framework", name))).toEqual(
           readFileSync(path.join(right, ".cursor", "rules", "framework", name)),
@@ -161,7 +151,7 @@ describe("framework-setup", () => {
   it("reports a stale framework rule in the plan and removes only that file when applied", () => {
     const cwd = writeApp({
       profile: "static-web",
-      capabilities: { "app-config": true, "cursor-standards": true, ui: false, "dev-tools": false, "deploy-static": false },
+      capabilities: { "app-config": true, "cursor-standards": true, ui: false, "dev-tools": false, deploy: false },
     });
     try {
       mkdirSync(path.join(cwd, ".cursor", "rules", "framework", "notes"), { recursive: true });
@@ -188,9 +178,9 @@ describe("framework-setup", () => {
       mkdirSync(path.join(cwd, ".github", "workflows"), { recursive: true });
       writeFileSync(path.join(cwd, ".github", "workflows", "deploy.yml"), owned);
       const result = runSetup({ cwd });
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode).toBe(1);
       expect(result.lines).toContain(
-        "  deploy-static  preserved  .github/workflows/deploy.yml is application-owned and was left unchanged.",
+        "  deploy  conflict  .github/workflows/deploy.yml is application-owned. Run framework deploy enable --dry-run.",
       );
       expect(readFileSync(path.join(cwd, ".github", "workflows", "deploy.yml"), "utf8")).toBe(owned);
     } finally {
@@ -200,10 +190,14 @@ describe("framework-setup", () => {
 
   it("rejects unknown, incompatible, and unsafe configuration", () => {
     const cases: Array<{ config: unknown; message: string }> = [
-      { config: { profile: "node-server" }, message: 'Profile "node-server" is not implemented' },
+      { config: { profile: "container" }, message: 'Profile "container" is not implemented' },
       {
         config: { profile: "static-web", capabilities: { "app-config": true, billing: true } },
         message: "billing is not an implemented capability.",
+      },
+      {
+        config: { capabilities: { "app-config": false } },
+        message: "app-config is mandatory.",
       },
       {
         config: { profile: "static-web", capabilities: { "app-config": false } },
@@ -224,6 +218,24 @@ describe("framework-setup", () => {
       {
         config: { profile: "static-web", workflowRef: "main", deploy: { ...deploy, installCommand: "echo ${{ secrets.X }}" } },
         message: "deploy.installCommand must be one line.",
+      },
+      {
+        config: { profile: "node-server", workflowRef: "main", deploy },
+        message: "deploy.systemdUnit must be a single .service name.",
+      },
+      {
+        config: {
+          profile: "next-standalone",
+          workflowRef: "deploy-static-v1",
+          deploy: {
+            ...deploy,
+            outputDirectory: ".next/standalone",
+            entryFile: "server.js",
+            systemdUnit: "allapps.service",
+            healthcheckUrl: "http://127.0.0.1:3000/health",
+          },
+        },
+        message: "deploy-static-vN pins the frozen static workflow and cannot deploy a server profile.",
       },
     ];
 
@@ -271,6 +283,7 @@ describe("framework-setup", () => {
     const rendered = renderDeployCaller({
       repository: "Clain-Apps/App-Framework",
       workflowRef: "deploy-static-v1",
+      profile: "static-web",
       deploy: { ...deploy, installCommand: 'echo "hi"' },
     });
     const parsed = parse(rendered) as {
@@ -320,9 +333,23 @@ describe("framework-setup", () => {
       const loaded = loadCapabilityManifest(pathToFileURL(modulePath).href);
       expect(loaded.assets.mode).toBe("package");
       expect(readSourceCommit(loaded.assets)).toBe(commit);
-      expect(loaded.manifest.deployRoot).toBe("/all-apps");
+      expect(loaded.manifest.deployRoot).toBe("/apps");
     } finally {
       rmSync(packed, { recursive: true, force: true });
+    }
+  });
+
+  it("applies integration defaults without writing a deploy caller", () => {
+    const cwd = writeApp({});
+    try {
+      const result = runSetup({ cwd });
+      expect(result.exitCode).toBe(0);
+      expect(result.lines).toContain("  profile  none");
+      expect(result.lines.some((line) => line.includes("  deploy  "))).toBe(false);
+      expect(existsDirectory(path.join(cwd, ".github"))).toBe(false);
+      expect(existsFile(path.join(cwd, ".cursor", "framework-standards.json"))).toBe(true);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
     }
   });
 

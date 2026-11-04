@@ -12,7 +12,7 @@ Each package has one responsibility and one JavaScript entry, `"."`. `@app-frame
 | --- | --- |
 | `@app-framework/ui` | `af-*` custom elements and tag-name styles for theme, headings, and panels. |
 | `@app-framework/app-config` | Typed environment contracts, validation, and the split between server-only and browser-safe values. |
-| `@app-framework/dev-tools` | `framework-check` and `framework-setup`. The checker compares installed framework packages with the latest stable npm versions. Setup validates `framework.config.json` and applies standards and the static deploy caller. |
+| `@app-framework/dev-tools` | `framework` CLI (`doctor`, `adopt`, `modules`, `add`, `upgrade`, `deploy enable`). `framework-check` and `framework-setup` are aliases. The checker compares installed framework packages with the latest stable npm versions. Adopt and setup validate `framework.config.json` and apply standards. They do not write a deploy caller. |
 
 `ui` and `app-config` have no runtime dependencies. `dev-tools` depends only on `semver`. None of the packages depend on each other, so a release of one does not version the other. `framework-setup` reads the manifest and the standards from this repository when it runs inside the checkout. The published package carries a copy of that contract and those rules, produced at build time, so an installed CLI can run without this git tree.
 
@@ -22,11 +22,11 @@ The npm scope is recorded in [`framework.scope.json`](../framework.scope.json). 
 
 ## Standards and workflows
 
-Shared development conventions live in [`standards/cursor/`](../standards/cursor). Setup copies a version into `.cursor/rules/framework` and writes `.cursor/framework-standards.json` with that version and the framework commit. [`scripts/sync-cursor-standards.mjs`](../scripts/sync-cursor-standards.mjs) performs the same copy. `framework-check` does not report the standards version. `framework-setup --check` does. Project-specific rules stay outside that directory. The interface rule in [`.cursor/rules/ui-elements.mdc`](../.cursor/rules/ui-elements.mdc) applies to this repository only.
+Shared development conventions live in [`standards/cursor/`](../standards/cursor). Adopt and upgrade copy a version into `.cursor/rules/framework` and write `.cursor/framework-standards.json` with that version and the framework commit. [`scripts/sync-cursor-standards.mjs`](../scripts/sync-cursor-standards.mjs) is a compatibility shim for that copy after the package is built. `framework doctor` reports the standards pin. Project-specific rules stay outside that directory. The interface rule in [`.cursor/rules/ui-elements.mdc`](../.cursor/rules/ui-elements.mdc) applies to this repository only.
 
-The reusable static deployment workflow is [`.github/workflows/deploy-static.yml`](../.github/workflows/deploy-static.yml). It is `workflow_call` only. Callers in Clain-Apps reference `Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main`. The release directory is `<deploy_root>/<repository-name>/`. The organisation variable `DEPLOY_ROOT` is `/all-apps`, and the name is the repository that triggered the caller. The caller passes `vps_host`, `vps_user`, and `deploy_root`. `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` are organisation secrets. The workflow creates that application's release directory and switches its `current` symlink. It leaves every other path unchanged. An optional `deploy-static-vN` pin is described in the consumer contract.
+The reusable deployment workflow is [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). It is `workflow_call` only. Profiles are `static`, `node`, and `next-standalone`. Callers in Clain-Apps reference `Clain-Apps/App-Framework/.github/workflows/deploy.yml@deploy-v1` or `@main`. The release directory is `<deploy_root>/<app-name>/`. The organisation variable `DEPLOY_ROOT` is `/apps`. `app-name` may be set independently of the GitHub repository. The caller passes `vps_host`, `vps_user`, and `deploy_root`. `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` are organisation secrets. The workflow creates that application's release directory, switches its `current` symlink, and leaves `shared/` and every other path unchanged. [`.github/workflows/deploy-static.yml`](../.github/workflows/deploy-static.yml) is a static compatibility wrapper. The frozen tag `deploy-static-v1` is not moved.
 
-This repository's own [CI](../.github/workflows/ci.yml) and [release](../.github/workflows/release.yml) workflows validate and version the framework. They are not the application deployment. There is no Node.js server profile and no container profile.
+This repository's own [CI](../.github/workflows/ci.yml) and [release](../.github/workflows/release.yml) workflows validate and version the framework. They are not the application deployment. There is no container profile. Caddy stays outside this repository.
 
 ## Dependency rules
 
@@ -47,11 +47,13 @@ Packages and non-package patterns are versioned differently.
 2. Merge to `main`. GitHub Actions opens or updates a version pull request.
 3. Merge the version pull request.
 4. The release workflow publishes changed packages and their dependents, then pushes package tags, once the npm scope is confirmed and trusted publishing is configured.
-5. Consuming apps detect newer package versions with `framework-check`. They are not updated automatically, and the checker does not edit their dependency files.
+5. Consuming apps detect newer package versions with `framework doctor` or `framework-check`. `framework upgrade` applies compatible package updates when those packages are available. A major update is reported and is not applied.
 
 `framework-check` exits 0 for warnings and for registry failures, so a development script can continue. It exits 1 only when the local manifest cannot be read.
 
-A standards change is adopted by bumping `standards/cursor/version.json`, rerunning setup, and committing the copied rules. That version is not an npm version. A workflow change on `main` is adopted by the next run of a caller that references `main`. A caller that references `deploy-static-v1` stays on that tag until the tag moves. Neither path rewrites an application's source on its own.
+A standards change is adopted by bumping `standards/cursor/version.json`, rerunning `framework upgrade`, and committing the copied rules. That version is not an npm version. A workflow change on `main` is adopted by the next run of a caller that references `main`. A caller that references `deploy-v1` or `deploy-static-v1` stays on that tag until the application moves the ref. `deploy-static-v1` is not moved. Neither path rewrites an application's source on its own.
+
+The Changesets version pull request needs GitHub Actions to be allowed to create pull requests. In the repository (and, if the organisation overrides it, the organisation) set Actions → General → Workflow permissions to read and write, and enable "Allow GitHub Actions to create and approve pull requests". The workflow already requests `contents: write` and `pull-requests: write`. A missing checkbox cannot be replaced by a token in this repository.
 
 ## First publication
 
@@ -66,7 +68,7 @@ Setting `scopeConfirmed` to `true` does not create the packages. `scripts/publis
 3. Set `"private": false` on each package.
 4. Set Changesets `access` to `"public"`.
 5. From a logged-in machine, build and publish each package once (`pnpm build`, then `pnpm exec npm publish --access public` in each package directory). Trusted publishing cannot create the first version of a package.
-6. Confirm `npm view` for each package. Then set that capability's `distribution.status` to `available` in `capabilities/manifest.json`. Setup will print the `pnpm add` command and will still leave the application's `package.json` unchanged.
+6. Confirm `npm view` for each package. Then set that capability's `distribution.status` to `available` in `capabilities/manifest.json`. `framework add` and `framework upgrade` will install the versioned dependency with the application's package manager. Setup still leaves `package.json` unchanged.
 7. On npm, for each package, add a GitHub Actions trusted publisher for owner `Clain-Apps`, repository `App-Framework`, workflow filename `release.yml`. Allow `npm publish`. A new trusted-publisher configuration must complete a successful publish within npm's current window (2 days at the time of writing).
 8. Later version pulls publish through `.github/workflows/release.yml`. Only changed packages, and packages that depend on them, are released. Each published package gets its own tag.
 
@@ -77,8 +79,8 @@ Choose a license before the first public publish. The private packages are marke
 - A Next.js landing page, starter application, or hosting platform.
 - A feature used by only one application.
 - A speculative package, or a manifest entry, for a catalogue item that no consumer needs yet.
-- A module marketplace or a second installer beside `framework-setup`.
-- A Node.js server deployment profile, or a container profile. Only the static profile is shared.
+- A module marketplace of catalogue candidates, or a second installer beside the `framework` CLI.
+- A container profile, Caddy configuration, or one product's host routing.
 
 An item becomes a package only after the decision test in [`AGENTS.md`](../AGENTS.md) says the behaviour is a reusable implementation with a stable interface. Standards and workflows stay out of npm. Candidates stay in the catalogue until a real implementation exists.
 
@@ -89,6 +91,6 @@ Record a new-capability decision in the pull request. If it changes what the fra
 - The shared interface belongs in `@app-framework/ui` as custom elements styled by tag name. Tabs, accordions, graphs, calendars, modals, menus, routing, and animation wait until an application needs them.
 - A database package waits until two applications would copy the same client setup. It will wrap an established library, not an ORM or an engine.
 - Typed environment loading belongs in `@app-framework/app-config` because every server application repeats it and the contract is small.
-- Version awareness belongs in `framework-check`. Capability selection and standards sync belong in `framework-setup`. Neither command edits dependency files.
+- Version awareness belongs in `framework doctor` and `framework-check`. Capability selection, adoption, and standards sync belong in the `framework` CLI. Setup does not edit dependency files. `framework add` and `framework upgrade` edit them only for packages the manifest marks available.
 - Shared development conventions belong in `standards/cursor`. Cursor applies the copy an application commits.
-- The common static deployment process belongs in the reusable workflow, with releases under `/all-apps/<repository-name>/`. App-Template keeps the landing page and the thin caller. The host, user, deploy root, SSH key, and known hosts are Clain-Apps organisation settings. Who owns which of those decisions is written in [`Responsibilities.md`](Responsibilities.md).
+- The common deployment process belongs in the reusable workflow, with releases under `/apps/<app-name>/`. App-Template keeps the landing page and the thin caller. The host, user, deploy root, SSH key, and known hosts are Clain-Apps organisation settings. Who owns which of those decisions is written in [`Responsibilities.md`](Responsibilities.md).

@@ -134,7 +134,7 @@ const implementedPatterns = [
   "Application configuration",
   "Framework update checker",
   "Development conventions",
-  "Static deployment",
+  "Application deployment",
   "Package release",
 ];
 

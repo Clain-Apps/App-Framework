@@ -1,6 +1,6 @@
 # App-Framework
 
-This repository is the source of reusable solutions for Clain-Apps applications: packages, Cursor standards, the static deployment workflow, and the capability contract. It does not own any one application.
+This repository is the source of reusable solutions for Clain-Apps applications: packages, Cursor standards, the application deployment workflow, and the capability contract. It does not own any one application.
 
 Read [`docs/PROJECT-DEFINITION.md`](docs/PROJECT-DEFINITION.md) before changing what this repository is. Read [`docs/Responsibilities.md`](docs/Responsibilities.md) before adding a module. Read [`docs/architecture.md`](docs/architecture.md) for dependency and release rules. Read [`REUSABLE_PATTERNS_CATALOGUE.md`](REUSABLE_PATTERNS_CATALOGUE.md) before treating a documented pattern as an implemented capability. Read [`capabilities/manifest.json`](capabilities/manifest.json) for the machine-readable contract of implemented capabilities. Read [`docs/consumer-contract.md`](docs/consumer-contract.md) before telling App-Template how to set up, install, or deploy.
 
@@ -20,4 +20,4 @@ When a new capability is requested, choose one outcome and record it briefly in 
 
 Add a package only for the first outcome. Prefer a non-breaking change. A breaking change needs a major release and a migration note. Publishing a version, syncing a standards version, or moving a workflow ref must not update existing applications by itself.
 
-Do not create an empty package, a dumping-ground `core` package, a module marketplace, or a catalogue feature ahead of a recurring need. The consumer entry for capabilities that already exist is `framework-setup`, documented in the consumer contract.
+Do not create an empty package, a dumping-ground `core` package, a module marketplace, or a catalogue feature ahead of a recurring need. The consumer entry for capabilities that already exist is the `framework` CLI, documented in the consumer contract.

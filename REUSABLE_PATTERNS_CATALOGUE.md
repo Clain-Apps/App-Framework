@@ -8,7 +8,7 @@ A documented pattern is not an implemented capability. Status describes the cent
 - **proposed** — a central home is identified, and the artifact is not ready to adopt.
 - **deferred** — kept on the roadmap. This is not a commitment to build it.
 
-Implemented capabilities also have a machine-readable contract in [`capabilities/manifest.json`](capabilities/manifest.json). `framework-setup` reads that contract. Proposed and deferred rows stay in this catalogue and cannot be selected.
+Implemented capabilities also have a machine-readable contract in [`capabilities/manifest.json`](capabilities/manifest.json). The `framework` CLI reads that contract. Proposed and deferred rows stay in this catalogue and cannot be selected.
 
 Four classes cover every pattern:
 
@@ -51,13 +51,13 @@ Use is **core** when every application of that kind should consider it, and **op
 
 ### Framework update checker
 
-- Purpose: `framework-check` compares installed framework packages with the latest stable npm versions, including a required package that is absent. Compatible and major updates are reported separately. `framework-setup` reads `framework.config.json`, validates the selected capabilities against `capabilities/manifest.json`, syncs Cursor standards, writes the static deploy caller, and reports unpublished packages. Both commands leave dependency files and application source unchanged.
+- Purpose: `framework` adopts an existing application, reports integration status, lists implemented capabilities, adds a compatible module, and applies selected compatible updates. `framework-check` compares installed framework packages with the latest stable npm versions. `framework-setup` applies the current `framework.config.json`. Unpublished packages are reported and are not treated as installed.
 - Category: package
-- Location: `packages/dev-tools` (`@app-framework/dev-tools`, commands `framework-check` and `framework-setup`)
+- Location: `packages/dev-tools` (`@app-framework/dev-tools`, command `framework`; aliases `framework-check` and `framework-setup`)
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: After publication, install the dev dependency and run `pnpm framework:setup`. Until publication, run `node packages/dev-tools/dist/setup-cli.js --cwd <application>` from a checkout after `pnpm build`. The report names unpublished packages and does not add them.
+- Adoption: After publication, install the dev dependency and run `pnpm framework adopt`. Until publication, run `node packages/dev-tools/dist/framework-cli.js adopt --cwd <application>` from a checkout after `pnpm build`. The report names unpublished packages and does not add them.
 - Dependencies: `semver`
 
 ### Lint and TypeScript presets
@@ -231,23 +231,23 @@ Use is **core** when every application of that kind should consider it, and **op
 
 - Purpose: Shared guidance for naming, separation of concerns, TypeScript, code organisation, testing, and maintainability. Project-specific architecture stays in each application.
 - Category: standard
-- Location: `standards/cursor/` (`version.json` and `rules/`). `framework-setup` copies them. `scripts/sync-cursor-standards.mjs` is the same copy.
+- Location: `standards/cursor/` (`version.json` and `rules/`). `framework adopt` and `framework upgrade` copy them. `scripts/sync-cursor-standards.mjs` is a compatibility shim for that copy.
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: `pnpm framework:setup` writes `.cursor/rules/framework/` and `.cursor/framework-standards.json` with the standards version and framework commit. A later version is a bump of `version.json`, a rerun, and a commit in the application. The copy replaces files directly inside `.cursor/rules/framework/` and leaves every other rule in place. `framework-setup --check` compares the installed version. `framework-check` does not report it.
+- Adoption: `pnpm framework adopt` writes `.cursor/rules/framework/` and `.cursor/framework-standards.json` with the standards version and framework commit. A later version is a bump of `version.json`, `framework upgrade`, and a commit in the application. The copy replaces files directly inside `.cursor/rules/framework/` and leaves every other rule in place. `framework doctor` reports the installed version.
 - Dependencies: none. The standards are files in this repository, copied into the application. They are not an npm package.
 
-### Static deployment
+### Application deployment
 
-- Purpose: Publish a caller-supplied static directory to `<deploy_root>/<repository-name>/releases/<sha>-<run id>-<run attempt>`, refuse a root account and environment files, switch the `current` symlink, and point `current` back at `previous` on rollback. The repository name comes from the calling GitHub repository. Clain-Apps passes `deploy_root` as `/all-apps` through the organisation variable `DEPLOY_ROOT`. The caller also passes the host, user, Node version file, install command, build command, output directory, and entry file. The Next.js profile passes `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. There is no Node.js server profile and no container profile.
+- Purpose: Publish a caller-supplied release to `<deploy_root>/<app-name>/releases/<sha>-<run id>-<run attempt>`, switch `current`, keep `shared/` untouched, and point `current` back at `previous` on rollback. Profiles are `static`, `node`, and `next-standalone`. Server profiles restart a systemd unit and curl a health-check URL on the VPS, rolling back on failure. `app-name` may be set independently of the GitHub repository. Clain-Apps passes `deploy_root` as `/apps` through `DEPLOY_ROOT`. Root SSH is refused unless `allow_root` is set.
 - Category: standard
-- Location: `.github/workflows/deploy-static.yml`, called as `Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main`
+- Location: `.github/workflows/deploy.yml`, called as `Clain-Apps/App-Framework/.github/workflows/deploy.yml@deploy-v1` or `@main`. `.github/workflows/deploy-static.yml@main` is a static compatibility wrapper. The frozen tag `deploy-static-v1` is not moved.
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: `framework-setup` writes a thin caller when the application does not already have `.github/workflows/deploy.yml`. The caller references `@main`, so a change in this workflow applies on the next deploy without editing the caller. An optional `deploy-static-vN` pin stays on that tag until the tag moves. The application does not keep a copy of this workflow. GitHub can run the caller after this file is on the default branch.
-- Dependencies: organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/all-apps`), organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`, plus the caller's build profile. For the Next.js profile, `pnpm check` must write `out/index.html`. The deploy account needs write access to `/all-apps/<repository-name>/`.
+- Adoption: Configure a deploy profile in `framework.config.json`, then run `framework deploy enable --dry-run`. Adopt and setup never write a caller. An existing legacy workflow is archived to `.github/workflow-archive/` only with `--approve-switch`. Production callers pin `@deploy-v1`. A `main` ref follows the protected default branch. Existing `deploy-static.yml` callers can keep that wrapper at `@main` or move to `deploy.yml`.
+- Dependencies: organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/apps`), organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`, plus the caller's build profile. Server profiles also need a systemd unit and a health-check URL. Caddy and host routing stay outside this workflow. The deploy account needs write access to `/apps/<app-name>/`.
 
 ### Package release
 
@@ -273,14 +273,14 @@ Use is **core** when every application of that kind should consider it, and **op
 
 ### Secrets and deploy access
 
-- Purpose: Organisation deploy connection details and a non-root deploy account. `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` are organisation variables. `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` are organisation secrets. The static workflow refuses to deploy as root. Rotation and other secret classes are outside this workflow.
+- Purpose: Organisation deploy connection details. `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` are organisation variables. `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` are organisation secrets. Non-root is the default. An explicitly configured root account is allowed only when `allow_root` is true. Rotation and other secret classes are outside this workflow.
 - Category: standard
 - Location: the secret contract in `docs/consumer-contract.md`
 - Status: proposed
 - Use: core
 - Priority: now
-- Adoption: In the Clain-Apps organisation, set variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/all-apps`), and secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. Grant them to application repositories. Do not commit those values.
-- Dependencies: Static deployment for the static profile
+- Adoption: In the Clain-Apps organisation, set variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/apps`), and secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. Grant them to application repositories. Do not commit those values.
+- Dependencies: Application deployment
 
 ### Git practices
 
@@ -418,25 +418,14 @@ Use is **core** when every application of that kind should consider it, and **op
 
 ### Server provisioning
 
-- Purpose: Host, TLS, reverse proxy, and process setup that turn a release directory into a served site. Copying files into `/all-apps/<repository-name>/` does not serve them.
+- Purpose: Host, TLS, reverse proxy, and process setup that turn a release directory into a served site. Copying files into `/apps/<app-name>/` does not serve them.
 - Category: candidate
 - Location: no infrastructure repository yet
 - Status: deferred
 - Use: optional
 - Priority: next
 - Adoption: None. Provision the host by hand until a reviewed infrastructure source exists. This repository does not select a provider.
-- Dependencies: Static deployment for the artifact layout
-
-### Server deployment profile
-
-- Purpose: A deployment path for a long-running Node.js process. It is not built. The only shared profile is static export.
-- Category: candidate
-- Location: no workflow yet
-- Status: deferred
-- Use: optional
-- Priority: later
-- Adoption: None. Do not point a server application at `deploy-static-v1`.
-- Dependencies: none
+- Dependencies: Application deployment for the artifact layout
 
 ### Developer test state
 
@@ -898,7 +887,7 @@ These names are the previous 121-item inventory. The pattern column is the statu
 | type and API contracts | Application configuration |
 | extension mechanisms | Technology baseline |
 | compatibility | Package release |
-| application profiles | Server deployment profile |
+| application profiles | Application deployment |
 | dependency updates | Framework update checker |
 | controlled migrations | Migrations and data integrity |
 | release governance | Package release |
@@ -995,12 +984,12 @@ These names are the previous 121-item inventory. The pattern column is the statu
 | collaboration | Collaboration and shared editing |
 | external APIs | Provider integrations |
 | AI integration | AI integration |
-| build artifacts | Static deployment |
-| deployment pipelines | Static deployment |
+| build artifacts | Application deployment |
+| deployment pipelines | Application deployment |
 | environment isolation | Secrets and deploy access |
 | hosting | Server provisioning |
 | application separation | Repository structure |
-| release management | Static deployment |
+| release management | Application deployment |
 | resource management | Cost controls |
 | backup and recovery | Backups and restore |
 | infrastructure as code | Server provisioning |

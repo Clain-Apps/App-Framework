@@ -31,6 +31,7 @@ describe("package boundaries", () => {
       "./styles.css": "./styles.css",
     });
     expect(tools.bin).toEqual({
+      framework: "./dist/framework-cli.js",
       "framework-check": "./dist/cli.js",
       "framework-setup": "./dist/setup-cli.js",
     });

@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workflow = readFileSync(path.join(root, ".github/workflows/deploy-static.yml"), "utf8");
+const workflow = readFileSync(path.join(root, ".github/workflows/deploy.yml"), "utf8");
+const wrapper = readFileSync(path.join(root, ".github/workflows/deploy-static.yml"), "utf8");
 const manifest = JSON.parse(readFileSync(path.join(root, "capabilities/manifest.json"), "utf8")) as {
   repository: string;
   templateRepository: string;
@@ -93,11 +94,11 @@ function supportsSymlinks(): boolean {
 
 const symlinks = supportsSymlinks();
 
-describe("static deployment workflow", () => {
+describe("application deployment workflow", () => {
   const document = parse(workflow) as {
     on?: {
       workflow_call?: {
-        inputs?: Record<string, { required?: boolean; type?: string }>;
+        inputs?: Record<string, { required?: boolean; type?: string; default?: unknown }>;
         secrets?: Record<string, { required?: boolean }>;
       };
     };
@@ -107,7 +108,7 @@ describe("static deployment workflow", () => {
         if?: string;
         permissions?: { contents?: string };
         env?: Record<string, string>;
-        steps?: Array<{ name?: string; run?: string }>;
+        steps?: Array<{ name?: string; run?: string; if?: string }>;
       };
     };
   };
@@ -124,33 +125,44 @@ describe("static deployment workflow", () => {
     expect(document.jobs?.deploy?.if).toContain(manifest.repository);
     expect(workflow).not.toContain("daniel-clain");
     expect(workflow).not.toContain("/root/apps");
+    expect(workflow).not.toContain("/all-apps");
+    expect(workflow).not.toContain("FLOWVPS_");
   });
 
-  it("takes the host, user, and deploy root as inputs and keeps only the SSH secrets", () => {
+  it("takes shared org inputs, an application name, and only the SSH secrets", () => {
     const call = document.on?.workflow_call;
     for (const input of [
+      "profile",
       "vps_host",
       "vps_user",
       "deploy_root",
+      "app_name",
+      "allow_root",
       "rollback",
       "node_version_file",
       "install_command",
       "build_command",
       "output_directory",
       "entry_file",
+      "systemd_unit",
+      "healthcheck_url",
+      "healthcheck_timeout",
     ]) {
       expect(call?.inputs, input).toHaveProperty(input);
     }
+    expect(call?.inputs?.profile?.required).toBe(true);
     expect(call?.inputs?.vps_host?.required).toBe(true);
     expect(call?.inputs?.vps_user?.required).toBe(true);
     expect(call?.inputs?.deploy_root?.required).toBe(true);
+    expect(call?.inputs?.app_name?.required).toBe(false);
+    expect(call?.inputs?.allow_root?.default).toBe(false);
     expect(Object.keys(call?.secrets ?? {}).sort()).toEqual(["VPS_KNOWN_HOSTS", "VPS_SSH_KEY"]);
-    expect(call?.secrets?.VPS_SSH_KEY?.required).toBe(true);
-    expect(call?.secrets?.VPS_KNOWN_HOSTS?.required).toBe(true);
     expect(document.jobs?.deploy?.env).toMatchObject({
       VPS_HOST: "${{ inputs.vps_host }}",
       VPS_USER: "${{ inputs.vps_user }}",
       DEPLOY_ROOT: "${{ inputs.deploy_root }}",
+      APP_NAME_INPUT: "${{ inputs.app_name }}",
+      ALLOW_ROOT: "${{ inputs.allow_root }}",
       VPS_SSH_KEY: "${{ secrets.VPS_SSH_KEY }}",
       VPS_KNOWN_HOSTS: "${{ secrets.VPS_KNOWN_HOSTS }}",
     });
@@ -158,17 +170,12 @@ describe("static deployment workflow", () => {
     expect(workflow).not.toContain("secrets.VPS_USER");
   });
 
-  it("keeps the Next.js static profile, strict SSH, and the upload exclusions", () => {
+  it("keeps strict SSH, profile packaging, and upload exclusions", () => {
     expect(workflow).toContain("actions/checkout@v4");
-    expect(workflow).toContain("repository: ${{ github.repository }}");
-    expect(workflow).toContain("ref: ${{ github.sha }}");
     expect(workflow).toContain("pnpm/action-setup@v4");
     expect(workflow).toContain("actions/setup-node@v4");
-    expect(workflow).not.toMatch(/run:\s*pnpm check/);
-    expect(workflow).not.toContain("out/index.html");
     expect(workflow).toContain('bash --noprofile --norc -c "${INSTALL_COMMAND}"');
     expect(workflow).toContain('bash --noprofile --norc -c "${BUILD_COMMAND}"');
-    expect(workflow).toContain("There is no Node.js server profile and no container profile.");
     expect(workflow).toContain(`${manifest.deployRoot}`);
     expect(workflow).toContain("StrictHostKeyChecking=yes");
     expect(workflow).toContain("IdentitiesOnly=yes");
@@ -179,10 +186,37 @@ describe("static deployment workflow", () => {
     expect(workflow).toContain("--exclude 'node_modules'");
     expect(workflow).toContain("--exclude '.env'");
     expect(workflow).toContain("--exclude '.env.*'");
+    expect(workflow).toContain('if [[ "${DEPLOY_PROFILE}" == "static" ]]; then');
+    expect(workflow).toContain("Assemble the Next.js standalone directory");
+    expect(workflow).toContain("Health check failed. Rolling back.");
     expect(workflow).not.toContain("docker");
+    expect(workflow).toContain("Caddy and other host routing stay outside this workflow.");
     expect(runBash(rules, { RELEASE_COMMAND: "" }).status).toBe(0);
     expect(dedentRun(stepRun("Write the release rules"))).toContain("\nEND_RELEASE_SCRIPT\n");
     expect(dedentRun(stepRun("Publish the release"))).toContain("\nEOF\n");
+  });
+});
+
+describe("static compatibility wrapper", () => {
+  const document = parse(wrapper) as {
+    on?: {
+      workflow_call?: {
+        inputs?: Record<string, { required?: boolean }>;
+        secrets?: Record<string, { required?: boolean }>;
+      };
+    };
+    jobs?: { deploy?: { uses?: string; with?: Record<string, string> } };
+  };
+
+  it("calls the canonical workflow at main with the static profile", () => {
+    expect(Object.keys(document.on ?? {})).toEqual(["workflow_call"]);
+    expect(document.jobs?.deploy?.uses).toBe("Clain-Apps/App-Framework/.github/workflows/deploy.yml@main");
+    expect(document.jobs?.deploy?.with?.profile).toBe("static");
+    expect(document.jobs?.deploy?.with?.vps_host).toBe("${{ inputs.vps_host }}");
+    expect(document.jobs?.deploy?.with?.deploy_root).toBe("${{ inputs.deploy_root }}");
+    expect(wrapper).toContain("deploy-static-v1 is not moved");
+    expect(wrapper).not.toContain("/all-apps");
+    expect(wrapper).not.toContain("BEGIN release-rules");
   });
 });
 
@@ -207,11 +241,11 @@ describe("release paths and rollback decisions", () => {
     expect(checked.status, checked.stderr).toBe(0);
   });
 
-  it("derives each repository under the supplied deploy root", () => {
-    const demo = fields(expectSuccess(plan({ DEPLOY_ROOT: "/all-apps", GITHUB_REPOSITORY: "Clain-Apps/Demo" })).stdout);
+  it("derives each application under the supplied deploy root", () => {
+    const demo = fields(expectSuccess(plan({ DEPLOY_ROOT: "/apps", GITHUB_REPOSITORY: "Clain-Apps/Demo" })).stdout);
     expect(demo).toEqual({
-      app_root: "/all-apps/Demo",
-      destination: `/all-apps/Demo/releases/${releaseId}`,
+      app_root: "/apps/Demo",
+      destination: `/apps/Demo/releases/${releaseId}`,
       release_id: releaseId,
       app_name: "Demo",
     });
@@ -227,27 +261,42 @@ describe("release paths and rollback decisions", () => {
     expect(demoDestination.startsWith(`${otherRoot}/`)).toBe(false);
   });
 
-  it("appends the calling repository name instead of replacing another application directory", () => {
-    const nested = fields(
-      expectSuccess(plan({ DEPLOY_ROOT: "/all-apps/Victim", GITHUB_REPOSITORY: "Clain-Apps/Other" })).stdout,
+  it("uses an explicit application name independent of the repository", () => {
+    const named = fields(
+      expectSuccess(
+        plan({ DEPLOY_ROOT: "/apps", GITHUB_REPOSITORY: "Clain-Apps/AppHub", APP_NAME_INPUT: "allapps" }),
+      ).stdout,
     );
-    expect(nested.app_root).toBe("/all-apps/Victim/Other");
-    expect(nested.app_name).toBe("Other");
-    expect(nested.app_root).not.toBe("/all-apps/Victim");
-    expect(nested.destination).toBe(`/all-apps/Victim/Other/releases/${releaseId}`);
+    expect(named).toEqual({
+      app_root: "/apps/allapps",
+      destination: `/apps/allapps/releases/${releaseId}`,
+      release_id: releaseId,
+      app_name: "allapps",
+    });
   });
 
-  it("rejects a deploy root or repository name that can escape the application directory", () => {
+  it("appends the calling application name instead of replacing another application directory", () => {
+    const nested = fields(
+      expectSuccess(plan({ DEPLOY_ROOT: "/apps/Victim", GITHUB_REPOSITORY: "Clain-Apps/Other" })).stdout,
+    );
+    expect(nested.app_root).toBe("/apps/Victim/Other");
+    expect(nested.app_name).toBe("Other");
+    expect(nested.app_root).not.toBe("/apps/Victim");
+    expect(nested.destination).toBe(`/apps/Victim/Other/releases/${releaseId}`);
+  });
+
+  it("rejects a deploy root or application name that can escape the application directory", () => {
     const roots = [
       "",
       "/",
-      "../all-apps",
-      "/all-apps/../etc",
-      "/all-apps/releases",
-      "/all-apps/Demo/current",
-      "/all-apps/Demo/previous",
-      "/all-apps/Demo/releases/abc",
-      "all-apps",
+      "../apps",
+      "/apps/../etc",
+      "/apps/releases",
+      "/apps/Demo/current",
+      "/apps/Demo/previous",
+      "/apps/Demo/releases/abc",
+      "/apps/Demo/shared",
+      "apps",
     ];
     for (const deployRoot of roots) {
       const result = plan({ DEPLOY_ROOT: deployRoot, GITHUB_REPOSITORY: "Clain-Apps/Demo" });
@@ -256,12 +305,17 @@ describe("release paths and rollback decisions", () => {
 
     const repositories = ["Demo", "Clain-Apps/../Demo", "Clain-Apps/Demo/extra", "Clain-Apps/.hidden", "Clain-Apps/has space"];
     for (const repository of repositories) {
-      const result = plan({ DEPLOY_ROOT: "/all-apps", GITHUB_REPOSITORY: repository });
+      const result = plan({ DEPLOY_ROOT: "/apps", GITHUB_REPOSITORY: repository });
       expect(result.status, repository).not.toBe(0);
     }
 
+    for (const name of ["../x", "has space", ".hidden", "releases", "current", "previous", "shared"]) {
+      const result = plan({ DEPLOY_ROOT: "/apps", GITHUB_REPOSITORY: "Clain-Apps/Demo", APP_NAME_INPUT: name });
+      expect(result.status, name).not.toBe(0);
+    }
+
     const badSha = plan({
-      DEPLOY_ROOT: "/all-apps",
+      DEPLOY_ROOT: "/apps",
       GITHUB_REPOSITORY: "Clain-Apps/Demo",
       GITHUB_SHA: "abc",
     });
@@ -360,10 +414,18 @@ describe("release paths and rollback decisions", () => {
     expect(blocked.stderr).toContain("not a symlink");
   });
 
-  it("refuses a root account and accepts a normal deploy account", () => {
+  it("refuses a root account unless allow_root is set, and accepts a normal deploy account", () => {
     const rootUser = runRules({ RELEASE_COMMAND: "require-account", VPS_HOST: "vps.example", VPS_USER: "root" });
     expect(rootUser.status).not.toBe(0);
     expect(rootUser.stderr).toContain("Refusing to deploy as root.");
+
+    const allowedRoot = runRules({
+      RELEASE_COMMAND: "require-account",
+      VPS_HOST: "vps.example",
+      VPS_USER: "root",
+      ALLOW_ROOT: "true",
+    });
+    expect(allowedRoot.status, allowedRoot.stderr).toBe(0);
 
     const accepted = runRules({ RELEASE_COMMAND: "require-account", VPS_HOST: "vps.example", VPS_USER: "deploy" });
     expect(accepted.status, accepted.stderr).toBe(0);
@@ -380,6 +442,45 @@ describe("release paths and rollback decisions", () => {
     }
   });
 
+  it("accepts the three deployment profiles and a systemd unit", () => {
+    for (const profile of ["static", "node", "next-standalone"]) {
+      const result = runRules({ RELEASE_COMMAND: "require-profile", DEPLOY_PROFILE: profile });
+      expect(result.status, profile).toBe(0);
+    }
+    const unknown = runRules({ RELEASE_COMMAND: "require-profile", DEPLOY_PROFILE: "container" });
+    expect(unknown.status).not.toBe(0);
+
+    const unit = runRules({ RELEASE_COMMAND: "require-unit", SYSTEMD_UNIT: "allapps.service" });
+    expect(unit.status, unit.stderr).toBe(0);
+    const badUnit = runRules({ RELEASE_COMMAND: "require-unit", SYSTEMD_UNIT: "../evil.service" });
+    expect(badUnit.status).not.toBe(0);
+  });
+
+  it("plans a health check and fails when the endpoint is unreachable", () => {
+    const planned = expectSuccess(
+      runRules({
+        RELEASE_COMMAND: "plan-healthcheck",
+        HEALTHCHECK_URL: "http://127.0.0.1:3000/health",
+        HEALTHCHECK_TIMEOUT: "20",
+      }),
+    );
+    expect(fields(planned.stdout)).toEqual({ url: "http://127.0.0.1:3000/health", timeout: "20" });
+
+    const badUrl = runRules({
+      RELEASE_COMMAND: "plan-healthcheck",
+      HEALTHCHECK_URL: "file:///etc/passwd",
+      HEALTHCHECK_TIMEOUT: "20",
+    });
+    expect(badUrl.status).not.toBe(0);
+
+    const failed = runRules({
+      RELEASE_COMMAND: "healthcheck",
+      HEALTHCHECK_URL: "http://127.0.0.1:1/health",
+      HEALTHCHECK_TIMEOUT: "1",
+    });
+    expect(failed.status).not.toBe(0);
+  });
+
   it.skipIf(!symlinks)("activates and rolls back one application without changing another", () => {
     const second = `${sha}-12-1`;
     const result = runRules(
@@ -388,10 +489,11 @@ describe("release paths and rollback decisions", () => {
         set -euo pipefail
         d=$(mktemp -d)
         trap 'rm -rf "$d"' EXIT
-        app="$d/all-apps/Demo"
-        other="$d/all-apps/Other"
-        mkdir -p "$app/releases/${releaseId}" "$other/releases/${releaseId}"
+        app="$d/apps/Demo"
+        other="$d/apps/Other"
+        mkdir -p "$app/releases/${releaseId}" "$app/shared" "$other/releases/${releaseId}"
         printf 'one' > "$app/releases/${releaseId}/index.html"
+        printf 'keep' > "$app/shared/secret.env"
         printf 'other' > "$other/releases/${releaseId}/index.html"
         ln -sfn "releases/${releaseId}" "$other/current"
         export APP_ROOT="$app"
@@ -406,6 +508,7 @@ describe("release paths and rollback decisions", () => {
         apply_activation
         test "$(readlink "$app/previous")" = "releases/${releaseId}"
         test "$(readlink "$app/current")" = "releases/${second}"
+        test "$(cat "$app/shared/secret.env")" = "keep"
         apply_rollback
         test "$(readlink "$app/current")" = "releases/${releaseId}"
         test "$(readlink "$other/current")" = "releases/${releaseId}"

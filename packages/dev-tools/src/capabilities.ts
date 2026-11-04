@@ -168,15 +168,15 @@ export function readSourceCommit(assets: FrameworkAssets): string {
 }
 
 export function workflowRefPattern(manifest: CapabilityManifest): RegExp {
-  const capability = manifest.capabilities.find((item) => item.id === "deploy-static");
-  if (capability === undefined) throw new Error("deploy-static is missing from the capability manifest.");
+  const capability = manifest.capabilities.find((item) => item.id === "deploy");
+  if (capability === undefined) throw new Error("deploy is missing from the capability manifest.");
   const schema = capability.configurationSchema;
-  if (schema === null) throw new Error("deploy-static is missing a configuration schema.");
+  if (schema === null) throw new Error("deploy is missing a configuration schema.");
   const properties = schema.properties;
-  if (!isRecord(properties)) throw new Error("deploy-static configuration schema is missing properties.");
+  if (!isRecord(properties)) throw new Error("deploy configuration schema is missing properties.");
   const workflowRef = properties.workflowRef;
   if (!isRecord(workflowRef) || typeof workflowRef.pattern !== "string") {
-    throw new Error("deploy-static configuration schema is missing workflowRef.pattern.");
+    throw new Error("deploy configuration schema is missing workflowRef.pattern.");
   }
   return new RegExp(workflowRef.pattern);
 }

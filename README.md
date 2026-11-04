@@ -1,6 +1,6 @@
 # App-Framework
 
-The shared source for application packages, Cursor standards, and the static deployment workflow used across [Clain-Apps](https://github.com/Clain-Apps). An improvement is made here once. Each application adopts it by a version, a standards pin, or a workflow reference.
+The shared source for application packages, Cursor standards, and the application deployment workflow used across [Clain-Apps](https://github.com/Clain-Apps). An improvement is made here once. Each application adopts it by a version, a standards pin, or a workflow reference.
 
 [App-Template](https://github.com/Clain-Apps/App-Template) assembles a bootable application: the landing page, product configuration, and a thin caller for the shared workflow. This repository does not depend on App-Template.
 
@@ -22,15 +22,15 @@ pnpm check
 Every application calls the same workflow:
 
 ```yaml
-uses: Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main
+uses: Clain-Apps/App-Framework/.github/workflows/deploy.yml@deploy-v1
 ```
 
-A change on `main` applies on the next deployment. The workflow stays in this repository. The caller passes organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/all-apps`), and organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. The published directory is `/all-apps/<repository-name>/`. The repository name is the calling repository. The Next.js static profile is the only profile. The caller, the checks, and rollback are in [`docs/consumer-contract.md`](docs/consumer-contract.md).
+A change on `main` applies on the next deployment for callers that follow `main`. Production callers pin `deploy-v1`. The workflow stays in this repository. The caller passes organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/apps`), and organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. The published directory is `/apps/<app-name>/`. `app-name` may be set independently of the GitHub repository. Profiles are static, Node.js server, and Next.js standalone. The caller, the checks, and rollback are in [`docs/consumer-contract.md`](docs/consumer-contract.md).
 
 ## Read next
 
 - [`docs/PROJECT-DEFINITION.md`](docs/PROJECT-DEFINITION.md) — what this repository is, what it leaves to App-Template and to applications, and how updates reach an application.
-- [`docs/consumer-contract.md`](docs/consumer-contract.md) — `framework.config.json`, `pnpm framework:setup`, and the deployment caller App-Template should use.
+- [`docs/consumer-contract.md`](docs/consumer-contract.md) — `framework.config.json`, `framework adopt`, and the deployment caller App-Template should use.
 - [`docs/architecture.md`](docs/architecture.md) — package boundaries, release rules, and the first-publication checklist.
 - [`REUSABLE_PATTERNS_CATALOGUE.md`](REUSABLE_PATTERNS_CATALOGUE.md) — the inventory of recurring patterns. A row is not an implemented capability.
 - [`capabilities/manifest.json`](capabilities/manifest.json) — the machine-readable contract for implemented capabilities.
