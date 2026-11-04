@@ -2,7 +2,7 @@
 
 The shared source for application packages, Cursor standards, and the static deployment workflow used across [Clain-Apps](https://github.com/Clain-Apps). An improvement is made here once. Each application adopts it by a version, a standards pin, or a workflow reference.
 
-[App-Template](https://github.com/Clain-Apps/App-Template) assembles a bootable application: the landing page, per-application secrets, and a thin caller for the shared workflow. This repository does not depend on App-Template.
+[App-Template](https://github.com/Clain-Apps/App-Template) assembles a bootable application: the landing page, product configuration, and a thin caller for the shared workflow. This repository does not depend on App-Template.
 
 The npm packages are private. [`framework.scope.json`](framework.scope.json) has `scopeConfirmed: false`, so the release workflow does not publish, and an application cannot install the packages from the registry yet.
 
@@ -16,6 +16,16 @@ pnpm check
 ```
 
 `pnpm check` typechecks, lints, runs unit tests, builds, and checks the published files. `pnpm changeset` records a change against only the packages that changed.
+
+## Deploy
+
+Every application calls the same workflow:
+
+```yaml
+uses: Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main
+```
+
+A change on `main` applies on the next deployment. The workflow stays in this repository. The caller passes organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/all-apps`), and organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. The published directory is `/all-apps/<repository-name>/`. The repository name is the calling repository. The Next.js static profile is the only profile. The caller, the checks, and rollback are in [`docs/consumer-contract.md`](docs/consumer-contract.md).
 
 ## Read next
 

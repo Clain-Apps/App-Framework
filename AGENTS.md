@@ -15,7 +15,7 @@ When a new capability is requested, choose one outcome and record it briefly in 
 - **Reusable package** — a real implementation with a small public contract that more than one app needs. Add it to the manifest only when the code exists.
 - **Standard or workflow** — a rule, convention, or reusable GitHub Actions workflow maintained here and consumed by reference. Do not invent an npm package for it.
 - **Documented candidate** — a recurring requirement with no validated central implementation yet. Record it in the catalogue. Do not build it speculatively, and do not add it to the manifest.
-- **Template concern** — bootstrap, the landing page, per-application secrets, or the thin caller for a shared workflow. That belongs in App-Template.
+- **Template concern** — bootstrap, the landing page, product secrets, or the thin caller for a shared workflow. That belongs in App-Template. The shared deploy connection is a Clain-Apps organisation setting.
 - **Application code** — behaviour that is unique to one product. Leave it in that application.
 
 Add a package only for the first outcome. Prefer a non-breaking change. A breaking change needs a major release and a migration note. Publishing a version, syncing a standards version, or moving a workflow ref must not update existing applications by itself.

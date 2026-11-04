@@ -240,14 +240,14 @@ Use is **core** when every application of that kind should consider it, and **op
 
 ### Static deployment
 
-- Purpose: Publish a caller-supplied static directory to `/all-apps/<repository-name>/releases/<sha>-<run id>-<run attempt>`, refuse a root account and environment files, switch the `current` symlink, and point `current` back at `previous` on rollback. The repository name comes from the GitHub repository that triggered the caller. The caller supplies the Node version file, install command, build command, output directory, and entry file. The Next.js profile passes `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. There is no Node.js server profile and no container profile.
+- Purpose: Publish a caller-supplied static directory to `<deploy_root>/<repository-name>/releases/<sha>-<run id>-<run attempt>`, refuse a root account and environment files, switch the `current` symlink, and point `current` back at `previous` on rollback. The repository name comes from the calling GitHub repository. Clain-Apps passes `deploy_root` as `/all-apps` through the organisation variable `DEPLOY_ROOT`. The caller also passes the host, user, Node version file, install command, build command, output directory, and entry file. The Next.js profile passes `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. There is no Node.js server profile and no container profile.
 - Category: standard
-- Location: `.github/workflows/deploy-static.yml`, called as `Clain-Apps/App-Framework/.github/workflows/deploy-static.yml` at `main` or `deploy-static-vN`
+- Location: `.github/workflows/deploy-static.yml`, called as `Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main`
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: `framework-setup` writes a thin caller when the application does not already have `.github/workflows/deploy.yml`. Referencing `main` uses the protected default branch on the next run. Referencing `deploy-static-v1` stays on that tag until the tag moves. The application keeps the caller and the secrets. It does not keep a copy of this workflow. GitHub can run the caller after this file is on the default branch.
-- Dependencies: secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS`, plus the caller's build profile. For the Next.js profile, `pnpm check` must write `out/index.html`. The deploy account needs write access to `/all-apps/<repository-name>/`.
+- Adoption: `framework-setup` writes a thin caller when the application does not already have `.github/workflows/deploy.yml`. The caller references `@main`, so a change in this workflow applies on the next deploy without editing the caller. An optional `deploy-static-vN` pin stays on that tag until the tag moves. The application does not keep a copy of this workflow. GitHub can run the caller after this file is on the default branch.
+- Dependencies: organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/all-apps`), organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`, plus the caller's build profile. For the Next.js profile, `pnpm check` must write `out/index.html`. The deploy account needs write access to `/all-apps/<repository-name>/`.
 
 ### Package release
 
@@ -273,13 +273,13 @@ Use is **core** when every application of that kind should consider it, and **op
 
 ### Secrets and deploy access
 
-- Purpose: Per-application deploy credentials and a non-root deploy account. The static workflow checks the four secret names and refuses to deploy as root. Rotation, hosting access, and other secret classes are not a shared workflow.
+- Purpose: Organisation deploy connection details and a non-root deploy account. `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` are organisation variables. `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` are organisation secrets. The static workflow refuses to deploy as root. Rotation and other secret classes are outside this workflow.
 - Category: standard
 - Location: the secret contract in `docs/consumer-contract.md`
 - Status: proposed
 - Use: core
 - Priority: now
-- Adoption: Set `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS` on the application. Do not commit those values.
+- Adoption: In the Clain-Apps organisation, set variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/all-apps`), and secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`. Grant them to application repositories. Do not commit those values.
 - Dependencies: Static deployment for the static profile
 
 ### Git practices

@@ -112,7 +112,7 @@
       "location": ".github/workflows/deploy-static.yml",
       "type": "standard",
       "version": "deploy-static-v1",
-      "dependencies": ["VPS_HOST", "VPS_USER", "VPS_SSH_KEY", "VPS_KNOWN_HOSTS"],
+      "dependencies": ["vars.VPS_HOST", "vars.VPS_USER", "vars.DEPLOY_ROOT", "VPS_SSH_KEY", "VPS_KNOWN_HOSTS"],
       "configurationSchema": {
         "type": "object",
         "required": ["workflowRef", "deploy"],
@@ -136,7 +136,7 @@
         },
         "additionalProperties": false
       },
-      "integration": "A caller uses workflow_call on Clain-Apps/App-Framework/.github/workflows/deploy-static.yml at main or deploy-static-vN. The implementation stays in this repository.",
+      "integration": "A caller uses workflow_call on Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main. It passes vars.VPS_HOST, vars.VPS_USER, and vars.DEPLOY_ROOT, plus secrets VPS_SSH_KEY and VPS_KNOWN_HOSTS. An optional deploy-static-vN pin stays on that tag. The implementation stays in this repository.",
       "compatibility": {
         "node": ">=22",
         "profiles": ["static-web"],

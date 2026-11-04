@@ -274,13 +274,27 @@ describe("framework-setup", () => {
       deploy: { ...deploy, installCommand: 'echo "hi"' },
     });
     const parsed = parse(rendered) as {
-      jobs: { deploy: { uses: string; with: { install_command: string }; secrets: Record<string, string> } };
+      jobs: {
+        deploy: {
+          uses: string;
+          with: { install_command: string; vps_host: string; vps_user: string; deploy_root: string };
+          secrets: Record<string, string>;
+        };
+      };
     };
     expect(parsed.jobs.deploy.uses).toBe(
       "Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@deploy-static-v1",
     );
     expect(parsed.jobs.deploy.with.install_command).toBe('echo "hi"');
-    expect(parsed.jobs.deploy.secrets.VPS_SSH_KEY).toBe("${{ secrets.VPS_SSH_KEY }}");
+    expect(parsed.jobs.deploy.with.vps_host).toBe("${{ vars.VPS_HOST }}");
+    expect(parsed.jobs.deploy.with.vps_user).toBe("${{ vars.VPS_USER }}");
+    expect(parsed.jobs.deploy.with.deploy_root).toBe("${{ vars.DEPLOY_ROOT }}");
+    expect(parsed.jobs.deploy.secrets).toEqual({
+      VPS_SSH_KEY: "${{ secrets.VPS_SSH_KEY }}",
+      VPS_KNOWN_HOSTS: "${{ secrets.VPS_KNOWN_HOSTS }}",
+    });
+    expect(rendered).not.toContain("secrets.VPS_HOST");
+    expect(rendered).not.toContain("secrets.VPS_USER");
 
     const { manifest } = loadCapabilityManifest();
     const ui = manifest.capabilities.find((capability) => capability.id === "ui");

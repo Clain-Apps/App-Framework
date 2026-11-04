@@ -58,7 +58,7 @@ node packages/dev-tools/dist/setup-cli.js --cwd <application> --dry-run
 Setup does four things with the current manifest:
 
 1. It validates the profile, the capability names, and the deploy settings.
-2. It resolves each selected capability to the package, files, or workflow in the manifest, including runtime dependencies such as `semver` for dev-tools and the four deploy secrets.
+2. It resolves each selected capability to the package, files, or workflow in the manifest, including runtime dependencies such as `semver` for dev-tools and the organisation deploy variables and secrets.
 3. It copies `standards/cursor/rules` into `.cursor/rules/framework` and writes `.cursor/framework-standards.json` with `version`, `source`, and `commit`. Files directly in that `framework` directory that are no longer in the standards set are removed. Other Cursor rules, including files in subfolders of `framework`, stay. Turning the capability off leaves a previous copy in place.
 4. It writes `.github/workflows/deploy.yml` when that file is missing or when the file already starts with `# managed-by: @app-framework/dev-tools deploy-static`. An application-owned workflow is left unchanged.
 
@@ -158,9 +158,23 @@ uses: Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@deploy-static
 
 The workflow runs only when called. It checks out the caller repository, runs the caller's install and build commands, and publishes `output_directory`. Empty commands fail. The commands are single-line strings in the caller file. `rollback` is the caller's `workflow_dispatch` input; the called workflow reads that input because a called workflow does not see the caller's event name reliably.
 
-It refuses to deploy `Clain-Apps/App-Template` and `Clain-Apps/App-Framework`, to deploy as root, or to publish environment files or a `node_modules` / `.git` directory inside the output directory. A release is a new directory under `/all-apps/<repository-name>/releases/<sha>-<run id>-<run attempt>`. The repository name comes from the GitHub repository that triggered the run, so each application has its own directory. `current` moves only after the entry file is present, and only when `current` is a symlink. Rollback points `current` at `previous` when that previous release still has the entry file.
+It refuses to deploy `Clain-Apps/App-Template` and `Clain-Apps/App-Framework`, to deploy as root, or to publish environment files, `.git`, `.github`, or a `node_modules` directory. A release is a new directory under `/all-apps/<repository-name>/releases/<sha>-<run id>-<run attempt>`. The repository name comes from the calling repository. The caller cannot choose another name. `deploy_root` is the shared parent; the workflow appends the repository name and only changes `releases/<id>`, `current`, and `previous` inside that directory. `current` moves only after the entry file is present, and only when `current` is absent or already a symlink. Rollback points `current` at `previous` when that previous release still has the entry file.
 
-The workflow creates and switches that application's release directory. It does not modify any other path. An existing host that serves `/root/apps/<repository-name>/current` keeps serving that directory. Pointing the host at `/all-apps/<repository-name>/current` is a separate change and was not done from this repository. The deploy account needs write access to `/all-apps/<repository-name>/`. This repository does not create that directory on the server.
+The workflow creates and switches that application's release directory. It leaves every other path unchanged. An existing host that serves `/all-apps/<repository-name>/current` keeps serving that directory. Pointing the host at `/all-apps/<repository-name>/current` is a separate change and was not done from this repository. The deploy account needs write access to `/all-apps/<repository-name>/`. This repository does not create that directory on the server.
+
+### Organisation variables and secrets
+
+Set these on the Clain-Apps organisation and grant them to application repositories. The called workflow reads the caller's inputs and secrets. It does not read organisation settings itself.
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `VPS_HOST` | Variable | SSH hostname |
+| `VPS_USER` | Variable | Non-root deploy account |
+| `DEPLOY_ROOT` | Variable | `/all-apps` |
+| `VPS_SSH_KEY` | Secret | Private key for that account |
+| `VPS_KNOWN_HOSTS` | Secret | `known_hosts` line for `VPS_HOST`, used with `StrictHostKeyChecking=yes` |
+
+Product secrets stay with the application. These five values are the shared deploy connection.
 
 The Next.js profile is `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. There is no Node.js server profile and no container profile.
 
@@ -190,6 +204,9 @@ jobs:
       contents: read
     uses: Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@main
     with:
+      vps_host: "${{ vars.VPS_HOST }}"
+      vps_user: "${{ vars.VPS_USER }}"
+      deploy_root: "${{ vars.DEPLOY_ROOT }}"
       rollback: "${{ github.event_name == 'workflow_dispatch' && inputs.rollback }}"
       node_version_file: ".nvmrc"
       install_command: "pnpm install --frozen-lockfile"
@@ -197,13 +214,11 @@ jobs:
       output_directory: "out"
       entry_file: "index.html"
     secrets:
-      VPS_HOST: "${{ secrets.VPS_HOST }}"
-      VPS_USER: "${{ secrets.VPS_USER }}"
       VPS_SSH_KEY: "${{ secrets.VPS_SSH_KEY }}"
       VPS_KNOWN_HOSTS: "${{ secrets.VPS_KNOWN_HOSTS }}"
 ```
 
-Pass those four secrets by name. Do not use `secrets: inherit`. The caller and the called workflow both request `contents: read`.
+Pass those two secrets by name. Do not use `secrets: inherit`. The caller and the called workflow both request `contents: read`.
 
 To pin a release, set `workflowRef` to `deploy-static-v1` and run setup again. The managed caller is rewritten to that tag.
 
@@ -212,7 +227,7 @@ To pin a release, set `workflowRef` to `deploy-static-v1` and run setup again. T
 This is the integration contract for [Clain-Apps/App-Template](https://github.com/Clain-Apps/App-Template).
 
 1. Commit the `framework.config.json` in "Select capabilities" for the static-web profile, with `workflowRef` of `main` or `deploy-static-v1`.
-2. Keep the landing page, the starter's own configuration values, and the per-application secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, and `VPS_KNOWN_HOSTS`.
+2. Keep the landing page and the starter's own configuration values. Use the Clain-Apps organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT`, and the organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`.
 3. After `@app-framework/dev-tools` is on the registry, add it as a dev dependency and add the `framework:setup` and `framework:check` scripts above. Run `pnpm framework:setup` and commit `.cursor/rules/framework`, `.cursor/framework-standards.json`, and the managed `.github/workflows/deploy.yml`.
 4. After `@app-framework/app-config` and `@app-framework/ui` are on the registry, add the ranges setup prints and commit the lockfile. Load UI from a client component as shown above. Call `loadPublicConfig` from browser code.
 5. Replace a copied deploy workflow with the thin caller. Keep the caller. Link to `REUSABLE_PATTERNS_CATALOGUE.md` in this repository. Do not copy the catalogue or the workflow implementation.
@@ -225,6 +240,7 @@ Generated applications inherit that caller and that config. They pin their own p
 - The three packages have no registry release. `scopeConfirmed` is false. Setup reports them as unpublished. The publication checklist is in [`architecture.md`](architecture.md).
 - GitHub can resolve the caller only after `.github/workflows/deploy-static.yml` is on the default branch of `Clain-Apps/App-Framework`. The tag `deploy-static-v1` has to point at a commit that contains the file before a pinned caller can run. Neither ref is created by editing the file locally.
 - For a private repository, GitHub Actions access must allow repositories in `Clain-Apps` to call workflows from this repository. That setting is in the repository's Actions settings.
-- The deploy account must be able to create `/all-apps/<repository-name>/`. No directory on the server was created or modified from this change. Hosts still pointed at `/root/apps/<repository-name>/current` are unchanged.
+- The Clain-Apps organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT`, and the secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`, have to exist and be granted to application repositories. This repository does not create them.
+- The deploy account must be able to create `/all-apps/<repository-name>/`. No directory on the server was created or modified from this change, and this change was not deployed to the live VPS. Hosts still pointed at `/all-apps/<repository-name>/current` are unchanged.
 - App-Template's current deploy workflow is still its own copy. Switch it to the caller above only after the shared workflow is on the default branch, and treat the `/all-apps` path as a new directory rather than a move of an existing one.
 - There is no shared Node.js server profile and no container profile.

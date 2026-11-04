@@ -32,7 +32,7 @@ The manifest records the implemented rows: identifier, purpose, location, class,
 
 ## What belongs in App-Template
 
-App-Template is the bootable starter at [Clain-Apps/App-Template](https://github.com/Clain-Apps/App-Template). It owns project setup, the landing page, the starter's configuration values, per-application secrets, and the thin caller that references this repository. It installs published framework packages. It does not reimplement them.
+App-Template is the bootable starter at [Clain-Apps/App-Template](https://github.com/Clain-Apps/App-Template). It owns project setup, the landing page, the starter's configuration values, and the thin caller that references this repository. It installs published framework packages. It does not reimplement them. The shared deploy connection is a Clain-Apps organisation setting.
 
 This repository does not depend on App-Template, and it does not contain a landing page or a starter application.
 
@@ -68,7 +68,7 @@ Implemented and selectable for the `static-web` profile:
 
 - `@app-framework/ui`, `@app-framework/app-config`, and `@app-framework/dev-tools` (source is here; registry install is blocked)
 - Cursor standards in `standards/cursor`
-- Static deployment to `/all-apps/<repository-name>/`, with versioned release directories and rollback
+- Static deployment to `/all-apps/<repository-name>/`, with versioned release directories and rollback. `DEPLOY_ROOT` supplies `/all-apps`, and the directory name is the calling repository.
 
 Implemented and not selectable by an application:
 
