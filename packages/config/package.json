@@ -1,6 +1,6 @@
 {
   "name": "@app-framework/app-config",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Typed environment configuration with separate server-only and browser-safe values.",
   "type": "module",
