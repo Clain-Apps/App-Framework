@@ -6,4 +6,4 @@ Define server-only and browser-safe values, then load them from an environment r
 
 This package has no runtime dependencies and does not read a secrets manager or remote configuration service.
 
-The npm scope is not confirmed. The package is private and is not published yet. See the repository README before the first publish.
+The npm scope is not confirmed. The package is private and is not published yet. Applications install `@app-framework/app-config` from the registry after publication. See the repository README before the first publish.

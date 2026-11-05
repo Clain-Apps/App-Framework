@@ -39,4 +39,4 @@ This package does not depend on Next.js or React. Do not add a React wrapper her
 
 Tabs, accordions, graphs, calendars, modals, menus, routing, and animation are not part of this version. Add an element here only when an application needs it. State stays on attributes, properties, and events.
 
-This package does not depend on the other framework packages. The npm scope is not confirmed, so the package is private and is not published yet.
+This package does not depend on the other framework packages. The npm scope is not confirmed, so the package is private and is not published yet. Applications install `@app-framework/ui` from the registry after publication. They do not copy this source tree.

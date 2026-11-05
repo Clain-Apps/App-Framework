@@ -315,7 +315,8 @@ describe("framework-setup", () => {
     const manual = packageSetupStatus({ ...ui, distribution: { ...ui.distribution, status: "available" } });
     expect(manual).toEqual({
       status: "manual",
-      message: "pnpm add @app-framework/ui@^0.1.0. Setup leaves package.json unchanged.",
+      message:
+        "@app-framework/ui@0.1.0 is available. framework adopt installs it with the application's package manager. Setup leaves package.json unchanged.",
     });
   });
 

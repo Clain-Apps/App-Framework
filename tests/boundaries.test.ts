@@ -31,9 +31,9 @@ describe("package boundaries", () => {
       "./styles.css": "./styles.css",
     });
     expect(tools.bin).toEqual({
-      framework: "./dist/framework-cli.js",
-      "framework-check": "./dist/cli.js",
-      "framework-setup": "./dist/setup-cli.js",
+      framework: "./dist/bin/framework.js",
+      "framework-check": "./dist/bin/framework-check.js",
+      "framework-setup": "./dist/bin/framework-setup.js",
     });
     expect(config.dependencies).toBeUndefined();
     expect(ui.dependencies).toBeUndefined();

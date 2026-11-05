@@ -57,7 +57,7 @@ Use is **core** when every application of that kind should consider it, and **op
 - Status: implemented
 - Use: core
 - Priority: now
-- Adoption: After publication, install the dev dependency and run `pnpm framework adopt`. Until publication, run `node packages/dev-tools/dist/framework-cli.js adopt --cwd <application>` from a checkout after `pnpm build`. The report names unpublished packages and does not add them.
+- Adoption: After publication, run `npm exec --yes --package=@app-framework/dev-tools -- framework adopt`. The report names unpublished packages and does not add them. A local checkout is for Framework contributors, not for applications.
 - Dependencies: `semver`
 
 ### Lint and TypeScript presets

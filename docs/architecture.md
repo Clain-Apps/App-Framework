@@ -44,22 +44,22 @@ When a package does depend on another framework package, Changesets is configure
 Packages and non-package patterns are versioned differently.
 
 1. Change a package and add a changeset that names only the affected packages.
-2. Merge to `main`. GitHub Actions opens or updates a version pull request.
-3. Merge the version pull request.
-4. The release workflow publishes changed packages and their dependents, then pushes package tags, once the npm scope is confirmed and trusted publishing is configured.
-5. Consuming apps detect newer package versions with `framework doctor` or `framework-check`. `framework upgrade` applies compatible package updates when those packages are available. A major update is reported and is not applied.
+2. Merge to `main`. The release job runs `pnpm check` before Changesets. A failed test does not open a version pull request and does not publish.
+3. Review the version pull request. A breaking change is a major changeset. Merging that pull request is the review. The workflow does not merge it.
+4. The release workflow publishes changed packages and their dependents, then pushes package tags, once the npm scope is confirmed and trusted publishing is configured. Provenance is requested with `NPM_CONFIG_PROVENANCE`. No long-lived npm token is stored.
+5. Consuming apps detect newer package versions with `framework doctor` or `framework-check`. `framework upgrade` applies compatible package updates when those packages are available. A major update is reported and is not applied. Dependabot opens dependency update pull requests for this repository; an application can use the same npm ecosystem so CI verifies framework package bumps.
 
 `framework-check` exits 0 for warnings and for registry failures, so a development script can continue. It exits 1 only when the local manifest cannot be read.
 
-A standards change is adopted by bumping `standards/cursor/version.json`, rerunning `framework upgrade`, and committing the copied rules. That version is not an npm version. A workflow change on `main` is adopted by the next run of a caller that references `main`. A caller that references `deploy-v1` or `deploy-static-v1` stays on that tag until the application moves the ref. `deploy-static-v1` is not moved. Neither path rewrites an application's source on its own.
+A standards change is adopted by bumping `standards/cursor/version.json`, rerunning `framework upgrade`, and committing the copied rules. That version is not an npm version. A workflow change on `main` is adopted by the next run of a caller that references `main`. `deploy-v1` is not a tag yet. `node scripts/verify-deploy-tag.mjs` prints the annotated-tag commands and does not create a tag. Cut it from a default-branch commit that contains `deploy.yml`, then push `deploy-v1`. A caller that references `deploy-v1` or `deploy-static-v1` stays on that tag until the application moves the ref. `deploy-static-v1` is not moved. Neither path rewrites an application's source on its own.
 
-The Changesets version pull request needs GitHub Actions to be allowed to create pull requests. In the repository (and, if the organisation overrides it, the organisation) set Actions → General → Workflow permissions to read and write, and enable "Allow GitHub Actions to create and approve pull requests". The workflow already requests `contents: write` and `pull-requests: write`. A missing checkbox cannot be replaced by a token in this repository.
+The Changesets version pull request needs GitHub Actions to be allowed to create pull requests. Release run [41934391833](https://github.com/Clain-Apps/App-Framework/actions/runs/41934391833) failed at `changesets/action@v1` with `GitHub Actions is not permitted to create or approve pull requests`. CI run [41934391649](https://github.com/Clain-Apps/App-Framework/actions/runs/41934391649) succeeded. In the repository, and in the organisation when the organisation overrides repository settings, open Settings → Actions → General → Workflow permissions. Choose read and write permissions, and enable "Allow GitHub Actions to create and approve pull requests". The workflow already requests `contents: write`, `pull-requests: write`, and `id-token: write`. A missing checkbox cannot be replaced by a token in this repository.
 
 ## First publication
 
 Do this once, by hand, after the scope is real. The packages stay private until then.
 
-An anonymous lookup on 26 October 2026 received HTTP 404 for `@app-framework/ui`, `@app-framework/app-config`, and `@app-framework/dev-tools`. A 404 means those names were not visible. It does not show that this account owns `@app-framework`, and it does not show that the scope is free. `scopeConfirmed` stays `false`. Nobody publishes under `@app-framework` until the npm account owner confirms the scope in npm's UI.
+On 5 November 2026 this machine was not logged into npm (`npm whoami` returned `ENEEDAUTH`). `GET https://registry.npmjs.org/-/org/app-framework` and `GET https://registry.npmjs.org/-/org/clain-apps` returned 404. `@app-framework/ui` and `@clain-apps/dev-tools` returned 404. `npm org ls app-framework` printed no members while logged out; that is not ownership. GitHub organisation membership does not establish an npm scope. `scopeConfirmed` stays `false` and `ownership` stays `unconfirmed`. Package names stay `@app-framework/*` because that is the name already used here. They are not renamed to a scope that has not been confirmed. Nobody publishes until the npm account owner creates or claims the scope in npm's UI and records that confirmation.
 
 Setting `scopeConfirmed` to `true` does not create the packages. `scripts/publish.mjs` skips the registry while the flag is false. If the flag were true, that script would refuse to publish while any of the three packages is still private.
 
@@ -68,7 +68,7 @@ Setting `scopeConfirmed` to `true` does not create the packages. `scripts/publis
 3. Set `"private": false` on each package.
 4. Set Changesets `access` to `"public"`.
 5. From a logged-in machine, build and publish each package once (`pnpm build`, then `pnpm exec npm publish --access public` in each package directory). Trusted publishing cannot create the first version of a package.
-6. Confirm `npm view` for each package. Then set that capability's `distribution.status` to `available` in `capabilities/manifest.json`. `framework add` and `framework upgrade` will install the versioned dependency with the application's package manager. Setup still leaves `package.json` unchanged.
+6. Confirm `npm view` for each package. Then set that capability's `distribution.status` to `available` in `capabilities/manifest.json`. `framework adopt` and `framework add` install that version with the application's package manager and update the lockfile. `framework upgrade` applies a later compatible version and does not apply a major update. Setup still leaves `package.json` unchanged.
 7. On npm, for each package, add a GitHub Actions trusted publisher for owner `Clain-Apps`, repository `App-Framework`, workflow filename `release.yml`. Allow `npm publish`. A new trusted-publisher configuration must complete a successful publish within npm's current window (2 days at the time of writing).
 8. Later version pulls publish through `.github/workflows/release.yml`. Only changed packages, and packages that depend on them, are released. Each published package gets its own tag.
 
@@ -91,6 +91,6 @@ Record a new-capability decision in the pull request. If it changes what the fra
 - The shared interface belongs in `@app-framework/ui` as custom elements styled by tag name. Tabs, accordions, graphs, calendars, modals, menus, routing, and animation wait until an application needs them.
 - A database package waits until two applications would copy the same client setup. It will wrap an established library, not an ORM or an engine.
 - Typed environment loading belongs in `@app-framework/app-config` because every server application repeats it and the contract is small.
-- Version awareness belongs in `framework doctor` and `framework-check`. Capability selection, adoption, and standards sync belong in the `framework` CLI. Setup does not edit dependency files. `framework add` and `framework upgrade` edit them only for packages the manifest marks available.
+- Version awareness belongs in `framework doctor` and `framework-check`. Capability selection, adoption, and standards sync belong in the `framework` CLI. Setup does not edit dependency files. `framework adopt`, `framework add`, and `framework upgrade` edit them only for packages the manifest marks available, and they do not apply a major update.
 - Shared development conventions belong in `standards/cursor`. Cursor applies the copy an application commits.
 - The common deployment process belongs in the reusable workflow, with releases under `/apps/<app-name>/`. App-Template keeps the landing page and the thin caller. The host, user, deploy root, SSH key, and known hosts are Clain-Apps organisation settings. Who owns which of those decisions is written in [`Responsibilities.md`](Responsibilities.md).

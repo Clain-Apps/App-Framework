@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { assembleReleasePlan } from "@changesets/assemble-release-plan";
 import { readConfig } from "@changesets/config";
 import type { NewChangeset, Packages } from "@changesets/types";
@@ -15,6 +16,18 @@ async function loadConfig(packages: Packages) {
   }
   return parsed.config;
 }
+
+describe("release workflow", () => {
+  it("runs the full check before changesets can publish", () => {
+    const workflow = readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
+    const check = workflow.indexOf("pnpm check");
+    const action = workflow.indexOf("changesets/action@v1");
+    expect(check).toBeGreaterThan(-1);
+    expect(action).toBeGreaterThan(check);
+    expect(workflow).toContain("Allow GitHub Actions to create and approve pull requests");
+    expect(workflow).toContain("NPM_CONFIG_PROVENANCE");
+  });
+});
 
 describe("independent versions", () => {
   it("versions only the changed package when nothing depends on it", async () => {

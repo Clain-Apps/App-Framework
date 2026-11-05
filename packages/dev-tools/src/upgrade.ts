@@ -1,11 +1,10 @@
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import semver from "semver";
 import { loadCapabilityManifest, type LoadedManifest } from "./capabilities.js";
 import { installedPackageVersion, latestPackageVersions, type CheckOptions } from "./check.js";
 import { readConsumerConfig, selectCapabilities, selectedNpmPackages, validateDeploySelection } from "./config.js";
 import { applyCapabilities, formatLine, type SetupResult } from "./setup.js";
-import { detectPackageManager, installArguments, readWorkspace, type RunCommand } from "./workspace.js";
+import { detectPackageManager, installArguments, readWorkspace, runPackageManager, type RunCommand } from "./workspace.js";
 
 export type UpgradeOptions = CheckOptions & {
   cwd?: string;
@@ -84,7 +83,7 @@ export async function runUpgrade(options: UpgradeOptions = {}): Promise<SetupRes
     const args = installArguments(manager.name, entry.packageName, published, entry.dependencyField);
     lines.push(`  ${entry.id}  update  ${manager.name} ${args.join(" ")}`);
     if (writing) {
-      const run = options.runCommand ?? defaultRunCommand;
+      const run = options.runCommand ?? runPackageManager;
       const result = run(manager.name, args, cwd);
       if (result.status !== 0) {
         return fail(header, result.stderr.trim() || result.stdout.trim() || `${manager.name} ${args.join(" ")} failed.`);
@@ -101,11 +100,6 @@ function headerFor(options: UpgradeOptions): string {
   if (options.dryRun === true) return "framework upgrade (dry-run)";
   if (options.check === true) return "framework upgrade (check)";
   return "framework upgrade";
-}
-
-function defaultRunCommand(command: string, args: readonly string[], cwd: string) {
-  const result = spawnSync(command, [...args], { cwd, encoding: "utf8", shell: process.platform === "win32" });
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 function fail(header: string, message: string): SetupResult {

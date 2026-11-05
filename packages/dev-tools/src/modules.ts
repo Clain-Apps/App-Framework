@@ -10,9 +10,9 @@ import {
   selectCapabilities,
   validateDeploySelection,
 } from "./config.js";
-import { applyCapabilities, formatLine, packageSetupStatus, type SetupResult } from "./setup.js";
-import { detectPackageManager, installArguments, readWorkspace, type RunCommand } from "./workspace.js";
-import { spawnSync } from "node:child_process";
+import { planFrameworkScript, planPackageInstall, writeFrameworkScript } from "./install.js";
+import { applyCapabilities, formatLine, type SetupResult } from "./setup.js";
+import { detectPackageManager, readWorkspace, runPackageManager, type RunCommand } from "./workspace.js";
 
 export type ModulesOptions = {
   cwd?: string;
@@ -88,29 +88,38 @@ export async function addModule(options: AddOptions): Promise<SetupResult> {
   let wrote = false;
 
   if (capability.distribution.mechanism === "npm") {
-    const status = packageSetupStatus(capability);
-    if (status.status === "blocked") {
-      lines.push(`  ${capability.id}  blocked  ${status.message}`);
+    const manager = workspace.workspace.packageManager ?? detectPackageManager(cwd, workspace.workspace.packageJson);
+    const plan = planPackageInstall({
+      id: capability.id,
+      packageName: capability.distribution.packageName,
+      version: capability.version,
+      dependencyField: capability.distribution.dependencyField,
+      distributionStatus: capability.distribution.status,
+      dependencies: capability.dependencies,
+      packageJson: workspace.workspace.packageJson,
+      manager: manager?.name,
+    });
+    lines.push(`  ${plan.id}  ${plan.status}  ${plan.message}`);
+    if (plan.status === "blocked" || plan.status === "error" || plan.status === "major") {
       return { exitCode: 1, wrote: false, lines };
     }
-    const manager = workspace.workspace.packageManager ?? detectPackageManager(cwd, workspace.workspace.packageJson);
-    if (manager === undefined) {
-      return fail(header, "Could not detect the application's package manager. Add a lockfile or packageManager field.");
-    }
-    const args = installArguments(
-      manager.name,
-      capability.distribution.packageName,
-      capability.version,
-      capability.distribution.dependencyField,
-    );
-    lines.push(`  install  ${manager.name} ${args.join(" ")}`);
-    if (writing) {
-      const run = options.runCommand ?? defaultRunCommand;
-      const result = run(manager.name, args, cwd);
+    if (writing && plan.status === "install" && plan.command !== undefined && plan.args !== undefined) {
+      const run = options.runCommand ?? runPackageManager;
+      const result = run(plan.command, plan.args, cwd);
       if (result.status !== 0) {
-        return fail(header, result.stderr.trim() || result.stdout.trim() || `${manager.name} ${args.join(" ")} failed.`);
+        return fail(header, result.stderr.trim() || result.stdout.trim() || `${plan.command} ${plan.args.join(" ")} failed.`);
       }
       wrote = true;
+    }
+    if (capability.id === "dev-tools" && (plan.status === "install" || plan.status === "unchanged")) {
+      const scriptPlan = planFrameworkScript(workspace.workspace.packageJson, true);
+      if (!writing) {
+        if (scriptPlan.status !== "skip") lines.push(`  script  ${scriptPlan.status}  ${scriptPlan.message}`);
+      } else {
+        const written = writeFrameworkScript(cwd);
+        lines.push(`  script  ${written.status}  ${written.message}`);
+        wrote = wrote || written.status === "write";
+      }
     }
   }
 
@@ -121,7 +130,7 @@ export async function addModule(options: AddOptions): Promise<SetupResult> {
     lines.push(`  config  write  ${CONFIG_FILE}`);
   }
 
-  const applied = applyCapabilities({ cwd, loaded, config: nextConfig, writing });
+  const applied = applyCapabilities({ cwd, loaded, config: nextConfig, writing, reportPackages: false });
   if (applied.errors.length > 0) return failAll(header, applied.errors);
   lines.push(...applied.lines.map(formatLine));
   wrote = wrote || applied.wrote;
@@ -138,11 +147,6 @@ function selectedIds(
   const selection = selectCapabilities(loaded.manifest, configFile.config);
   if (selection.errors.length > 0) return undefined;
   return selection.selected;
-}
-
-function defaultRunCommand(command: string, args: readonly string[], cwd: string) {
-  const result = spawnSync(command, [...args], { cwd, encoding: "utf8", shell: process.platform === "win32" });
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 function fail(header: string, message: string): SetupResult {

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.js";
 import { runSetup, type SetupOptions } from "./setup.js";
 
 const USAGE = "Usage: framework-setup [--cwd <application>] [--dry-run | --check | --list]";
@@ -52,12 +51,6 @@ export function runSetupCli(argv: readonly string[], log: (message: string) => v
   }
 }
 
-function isDirectExecution(): boolean {
-  const entry = process.argv[1];
-  if (entry === undefined) return false;
-  return import.meta.url === pathToFileURL(path.resolve(entry)).href;
-}
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   process.exit(runSetupCli(process.argv.slice(2)));
 }

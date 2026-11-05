@@ -1,5 +1,5 @@
 // Compatibility shim. The copy lives in packages/dev-tools/src/standards.ts.
-// Prefer: node packages/dev-tools/dist/framework-cli.js adopt --cwd <application>
+// Prefer: node packages/dev-tools/dist/bin/framework.js adopt --cwd <application>
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";

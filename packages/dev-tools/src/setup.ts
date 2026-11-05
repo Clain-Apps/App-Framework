@@ -47,10 +47,9 @@ export function packageSetupStatus(capability: Capability): { status: "blocked" 
       capability.dependencies.length === 0 ? "" : ` and requires ${capability.dependencies.join(", ")}`;
     return { status: "blocked", message: `${spec} is unpublished${requires}. No dependency was added.` };
   }
-  const command = capability.distribution.dependencyField === "devDependencies" ? "pnpm add -D" : "pnpm add";
   return {
     status: "manual",
-    message: `${command} ${capability.distribution.packageName}@^${capability.version}. Setup leaves package.json unchanged.`,
+    message: `${spec} is available. framework adopt installs it with the application's package manager. Setup leaves package.json unchanged.`,
   };
 }
 
@@ -171,6 +170,7 @@ export function applyCapabilities(input: {
   loaded: LoadedManifest;
   config: ConsumerConfig;
   writing: boolean;
+  reportPackages?: boolean;
 }): { lines: ReportLine[]; wrote: boolean; errors: string[] } {
   const selection = selectCapabilities(input.loaded.manifest, input.config);
   const errors = [
@@ -193,6 +193,7 @@ export function applyCapabilities(input: {
     const actionError = actionableError(capability);
     if (actionError !== undefined) return { lines, wrote, errors: [actionError] };
     if (capability.distribution.mechanism === "npm") {
+      if (input.reportPackages === false) continue;
       const status = packageSetupStatus(capability);
       lines.push({ capabilityId: capability.id, status: status.status, message: status.message });
       continue;

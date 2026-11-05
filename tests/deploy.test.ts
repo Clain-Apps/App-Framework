@@ -173,6 +173,10 @@ describe("application deployment workflow", () => {
   it("keeps strict SSH, profile packaging, and upload exclusions", () => {
     expect(workflow).toContain("actions/checkout@v4");
     expect(workflow).toContain("pnpm/action-setup@v4");
+    expect(workflow).toContain("steps.package-manager.outputs.manager == 'pnpm'");
+    expect(workflow).toContain("Detected package manager:");
+    expect(workflow).toContain("cache: ${{ steps.package-manager.outputs.cache }}");
+    expect(workflow).not.toContain("\n          cache: pnpm\n");
     expect(workflow).toContain("actions/setup-node@v4");
     expect(workflow).toContain('bash --noprofile --norc -c "${INSTALL_COMMAND}"');
     expect(workflow).toContain('bash --noprofile --norc -c "${BUILD_COMMAND}"');
@@ -524,6 +528,19 @@ describe("release paths and rollback decisions", () => {
     );
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout.trim()).toBe("ISOLATED");
+  });
+});
+
+describe("deploy tag procedure", () => {
+  it("prints the deploy-v1 commands and does not create a tag", () => {
+    const result = spawnSync(process.execPath, [path.join(root, "scripts", "verify-deploy-tag.mjs")], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("does not create or move a tag");
+    expect(result.stdout).toContain("git tag -a deploy-v1 origin/main");
+    expect(result.stdout).toContain("deploy-static-v1");
   });
 });
 

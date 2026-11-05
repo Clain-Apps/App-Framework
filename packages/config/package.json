@@ -5,6 +5,11 @@
   "description": "Typed environment configuration with separate server-only and browser-safe values.",
   "type": "module",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Clain-Apps/App-Framework.git",
+    "directory": "packages/config"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,7 +19,8 @@
   "files": ["dist", "README.md", "CHANGELOG.md"],
   "sideEffects": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"

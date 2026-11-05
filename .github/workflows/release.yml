@@ -1,3 +1,8 @@
+# Version pull requests need the repository (and the organisation, when it overrides
+# the repository) setting: Allow GitHub Actions to create and approve pull requests.
+# Settings → Actions → General → Workflow permissions.
+# The workflow already requests pull-requests: write. A missing checkbox cannot
+# be replaced by a token in this file. pnpm check runs before any publish.
 name: Release
 
 on:
@@ -32,10 +37,11 @@ jobs:
           package-manager-cache: false
       - run: npm install -g npm@11
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm check
       - uses: changesets/action@v1
         with:
           version: pnpm version-packages
           publish: pnpm release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

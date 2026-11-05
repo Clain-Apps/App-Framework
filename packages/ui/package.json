@@ -5,6 +5,11 @@
   "description": "Base interface elements and tag-name styles for App Framework applications.",
   "type": "module",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Clain-Apps/App-Framework.git",
+    "directory": "packages/ui"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,7 +28,8 @@
     "./styles.css"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"

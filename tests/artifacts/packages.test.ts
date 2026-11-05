@@ -41,7 +41,10 @@ describe("published build artifacts", () => {
     expect(cli.startsWith("#!/usr/bin/env node")).toBe(true);
     expect(setupCli.startsWith("#!/usr/bin/env node")).toBe(true);
     const frameworkCli = await readFile(path.join(packageDir, "dist/framework-cli.js"), "utf8");
+    const frameworkBin = await readFile(path.join(packageDir, "dist/bin/framework.js"), "utf8");
     expect(frameworkCli.startsWith("#!/usr/bin/env node")).toBe(true);
+    expect(frameworkBin.startsWith("#!/usr/bin/env node")).toBe(true);
+    expect(frameworkBin).toContain("runFrameworkCli");
     const declaration = await readFile(path.join(packageDir, "dist/index.d.ts"), "utf8");
     expect(declaration).toContain("checkFrameworkPackages");
     expect(declaration).toContain("runSetup");
@@ -52,6 +55,9 @@ describe("published build artifacts", () => {
     expect(packed).toContain("dist/cli.js");
     expect(packed).toContain("dist/setup-cli.js");
     expect(packed).toContain("dist/framework-cli.js");
+    expect(packed).toContain("dist/bin/framework.js");
+    expect(packed).toContain("dist/bin/framework-check.js");
+    expect(packed).toContain("dist/bin/framework-setup.js");
     expect(packed).toContain("dist/index.d.ts");
     expect(packed).toContain("dist/consumer/manifest.json");
     expect(packed).toContain("dist/consumer/source.json");

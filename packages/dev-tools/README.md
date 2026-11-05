@@ -15,12 +15,18 @@ framework deploy enable --cwd <application>
 
 `framework-setup` applies the current `framework.config.json`. `framework-check` compares installed `@app-framework/*` packages with the latest stable versions on the npm registry. Both remain aliases.
 
-`framework doctor` does not treat an unpublished package or an application-owned deploy workflow as successfully integrated. It reports which deploy profiles the application can use. `framework add` and `framework upgrade` edit `package.json` and the lockfile only when the manifest marks that package `available`. Setup does not edit dependency files. Adopt does not write a deploy caller.
+`framework doctor` does not treat an unpublished package or an application-owned deploy workflow as successfully integrated. It reports which deploy profiles the application can use. `framework adopt`, `framework add`, and `framework upgrade` edit `package.json` and the lockfile only when the manifest marks that package `available`. They do not apply a major update. Setup does not edit dependency files. Adopt does not write a deploy caller.
 
-The npm scope is not confirmed. The package is private and has no registry release. Until then, run the built CLI from an App-Framework checkout after `pnpm build`:
+Applications install the published package. They do not clone this repository or use `npm link`:
 
 ```bash
-node packages/dev-tools/dist/framework-cli.js adopt --cwd <application>
+npm exec --yes --package=@app-framework/dev-tools -- framework adopt
+```
+
+The npm scope is not confirmed, so that command cannot succeed yet. The package is private and has no registry release. Framework contributors can run the built CLI from a checkout after `pnpm build`:
+
+```bash
+node packages/dev-tools/dist/bin/framework.js adopt --cwd <application>
 ```
 
 The repository's [`docs/consumer-contract.md`](../../docs/consumer-contract.md) is the application-facing contract.

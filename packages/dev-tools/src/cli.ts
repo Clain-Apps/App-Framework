@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { checkFrameworkPackages, type CheckOptions } from "./check.js";
+import { isDirectExecution } from "./direct-execution.js";
 
 const VALUE_FLAGS = new Set(["--cwd", "--timeout", "--cache-path", "--cache-ttl", "--registry"]);
 
@@ -82,13 +81,7 @@ function parseNonNegativeInteger(value: string): number | undefined {
   return parsed;
 }
 
-function isDirectExecution(): boolean {
-  const entry = process.argv[1];
-  if (entry === undefined) return false;
-  return import.meta.url === pathToFileURL(path.resolve(entry)).href;
-}
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   const code = await runCli(process.argv.slice(2));
   process.exit(code);
 }

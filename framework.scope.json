@@ -1,6 +1,8 @@
 {
   "npmScope": "@app-framework",
   "scopeConfirmed": false,
+  "ownership": "unconfirmed",
+  "registry": "https://registry.npmjs.org",
   "repository": "Clain-Apps/App-Framework",
   "templateRepository": "Clain-Apps/App-Template"
 }

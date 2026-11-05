@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { runAdopt } from "./adopt.js";
+import { isDirectExecution } from "./direct-execution.js";
 import { checkFrameworkPackages, type CheckOptions } from "./check.js";
 import { runDeployEnable } from "./deploy.js";
 import { runDoctor } from "./doctor.js";
@@ -201,13 +200,7 @@ function parseFlags(argv: readonly string[]): { ok: true; flags: GlobalFlags } |
   return { ok: true, flags };
 }
 
-function isDirectExecution(): boolean {
-  const entry = process.argv[1];
-  if (entry === undefined) return false;
-  return import.meta.url === pathToFileURL(path.resolve(entry)).href;
-}
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   const code = await runFrameworkCli(process.argv.slice(2));
   process.exit(code);
 }

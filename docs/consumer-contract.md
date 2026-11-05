@@ -2,7 +2,7 @@
 
 How App-Template, and later each application, consumes this repository. The purpose of the repository is [`PROJECT-DEFINITION.md`](PROJECT-DEFINITION.md). Implementations stay here. An application does not copy package source, and it does not depend on this git history as a substitute for a published release.
 
-The packages are private until the npm scope in [`framework.scope.json`](../framework.scope.json) is confirmed and the first versions are published. The CLI reports that state. It does not add a `git` or `file` dependency. `framework setup` does not edit `package.json`. `framework add` and `framework upgrade` edit dependency files only when the selected package is marked `available` in the manifest.
+The packages stay private until the npm scope in [`framework.scope.json`](../framework.scope.json) is confirmed and the first versions are published. The CLI reports that state. It does not add a `git` or `file` dependency. `framework setup` does not edit `package.json`. `framework adopt`, `framework add`, and `framework upgrade` install a selected package only when the manifest marks it `available`, using the application's current package manager. A major update is reported and is not applied.
 
 ## Select capabilities
 
@@ -68,7 +68,13 @@ Selecting a profile and deploy settings does not write a GitHub Actions caller. 
 
 ## Run the CLI
 
-After `@app-framework/dev-tools` is published, the application adds it as a dev dependency and runs:
+An existing application does not clone App-Framework. The first command downloads the published CLI. It works in Windows PowerShell, on Linux, and in GitHub Actions. npm is only the downloader. Adopt detects npm, pnpm, or yarn from `packageManager` or the lockfile and does not replace that package manager.
+
+```bash
+npm exec --yes --package=@app-framework/dev-tools -- framework adopt
+```
+
+Adopt writes `framework.config.json` when it is missing, copies Cursor standards, and, once the manifest marks the packages `available`, installs them and updates the lockfile. It adds a `framework` script when that name is free:
 
 ```json
 {
@@ -80,17 +86,21 @@ After `@app-framework/dev-tools` is published, the application adds it as a dev 
 }
 ```
 
+Later commands use the local dependency:
+
 ```bash
-pnpm framework doctor
-pnpm framework adopt --dry-run
-pnpm framework adopt
-pnpm framework modules
-pnpm framework add cursor-standards
-pnpm framework upgrade --dry-run
-pnpm framework upgrade
-pnpm framework deploy enable --dry-run
-pnpm framework deploy enable
+npm exec framework doctor
+npm exec framework modules
+npm exec framework add ui
+npm exec framework upgrade --dry-run
+npm exec framework upgrade
+npm exec framework deploy enable --dry-run
+npm exec framework deploy enable
 ```
+
+`pnpm framework doctor` and `pnpm framework:setup` are the same commands when the application uses pnpm and the script exists. A global `npm install -g @app-framework/dev-tools` is optional. Application builds use the local dependency, not a global binary.
+
+The bootstrap command cannot succeed until `@app-framework/dev-tools` is on the registry. That release is blocked while `scopeConfirmed` is false.
 
 `framework-setup` and `framework-check` remain aliases. Setup applies the current `framework.config.json`. Check compares installed package versions. Prefer the `framework` commands for new scripts.
 
@@ -98,14 +108,14 @@ pnpm framework deploy enable
 
 `framework doctor` reports one of: `not-integrated`, `integrated`, `update-available`, `configuration-drift`, `conflict`, `capability-unavailable`. It also reports which deploy profiles are available and whether the application looks compatible with them. An unpublished selected package is `capability-unavailable`, not `integrated`. An application-owned `deploy.yml` is a `conflict` when `deploy` is selected, and a reported existing system when it is not. A configured deploy profile without an enabled caller is `configuration-drift`.
 
-Until the package is published, run the same commands from a checkout of App-Framework after `pnpm build`:
+Framework contributors, not applications, can run the built CLI from a checkout after `pnpm build`:
 
 ```bash
-node packages/dev-tools/dist/framework-cli.js adopt --cwd <application> --dry-run
-node packages/dev-tools/dist/framework-cli.js doctor --cwd <application>
+node packages/dev-tools/dist/bin/framework.js adopt --cwd <application> --dry-run
+node packages/dev-tools/dist/bin/framework.js doctor --cwd <application>
 ```
 
-`node scripts/sync-cursor-standards.mjs --target <application>` is a compatibility shim for the standards copy after `pnpm build`. Prefer `framework adopt` or `framework upgrade`.
+`node scripts/sync-cursor-standards.mjs --target <application>` is a contributor shim for the standards copy. Applications use `framework adopt` or `framework upgrade`.
 
 Adopt and setup do the following with the current manifest:
 
@@ -114,13 +124,13 @@ Adopt and setup do the following with the current manifest:
 3. Copy `standards/cursor/rules` into `.cursor/rules/framework` and write `.cursor/framework-standards.json` with `version`, `source`, and `commit`. Files directly in that `framework` directory that are no longer in the standards set are removed. Other Cursor rules, including files in subfolders of `framework`, stay. Turning the capability off leaves a previous copy in place.
 4. Do not write `.github/workflows/deploy.yml`. `framework deploy enable` writes that caller in a separate step. `--dry-run` prints the plan and any conflicting active workflows. `--approve-switch` archives a legacy workflow to `.github/workflow-archive/` and then writes the managed caller. The old file is not deleted. A managed caller starts with `# managed-by: @app-framework/dev-tools deploy`. The previous `deploy-static` marker is still recognised.
 
-For an unpublished package the line is `blocked` and names the package version. No dependency is added. After publication, once the manifest marks the package `available`, `framework add <module>` and `framework upgrade` install the versioned dependency with the application's existing package manager and update the lockfile. Setup still leaves `package.json` unchanged. Package versions are also compared by `framework-check`. Selected npm capabilities in `framework.config.json` are the required set. `appFramework.required` in `package.json` is a legacy fallback used only when `framework.config.json` is absent.
+For an unpublished package the line is `blocked` and names the package version. No dependency is added. Once the manifest marks the package `available`, `framework adopt` and `framework add <module>` install that version with npm, pnpm, or yarn, whichever the application already uses, and update the lockfile. `framework upgrade` installs a newer compatible version and does not apply a major update. Setup still leaves `package.json` unchanged. Package versions are also compared by `framework-check`. Selected npm capabilities in `framework.config.json` are the required set. `appFramework.required` in `package.json` is a legacy fallback used only when `framework.config.json` is absent.
 
 Application source, package manager, database, and backend architecture are preserved. Adopt does not enable `deploy` and does not write a caller.
 
 ## Packages
 
-These commands work after the registry release exists. They fail today.
+These commands work after the registry release exists. They fail today, while `scopeConfirmed` is false.
 
 ```bash
 pnpm add @app-framework/ui
@@ -210,7 +220,16 @@ uses: Clain-Apps/App-Framework/.github/workflows/deploy-static.yml@deploy-static
 
 `main` runs the workflow currently on the protected default branch. A reviewed fix applies on the next deploy without editing the caller. A breaking change on `main` also applies on that next run. Use `main` while iterating. Production callers pin `deploy-v1`.
 
-`deploy-v1` is the current production pin. Cut it from a commit that contains `deploy.yml`. Do not move the frozen tag `deploy-static-v1`. Existing callers of that tag keep the historic static workflow until they migrate. A caller-contract change uses a new tag, such as `deploy-v2`, and the application edits `workflowRef` when it is ready. `framework-check` does not report workflow tags.
+`deploy-v1` is the production pin after the tag exists on `Clain-Apps/App-Framework`. It is not a tag in this repository yet. Do not point a production caller at `deploy-v1` until `node scripts/verify-deploy-tag.mjs` has been followed and the tag has been pushed. The script prints the commands and does not create a tag. Cut the tag from a commit on the default branch that contains `deploy.yml`:
+
+```bash
+git fetch origin main
+git rev-parse origin/main:.github/workflows/deploy.yml
+git tag -a deploy-v1 origin/main -m "Application deployment workflow deploy-v1"
+git push origin deploy-v1
+```
+
+Do not move the frozen tag `deploy-static-v1`. Existing callers of that tag keep the historic static workflow until they migrate. A caller-contract change uses a new tag, such as `deploy-v2`, and the application edits `workflowRef` when it is ready. `framework-check` does not report workflow tags. Until `deploy-v1` exists, a caller that must run the workflow uses `@main`.
 
 The workflow runs only when called. It checks out the caller repository, runs the caller's install and build commands, and publishes `output_directory`. The `next-standalone` profile also copies `.next/static` and `public` into that directory. Empty commands fail. The commands are single-line strings in the caller file. `rollback` is the caller's `workflow_dispatch` input.
 
@@ -234,7 +253,7 @@ Set these on the Clain-Apps organisation and grant them to application repositor
 
 Product secrets stay with the application. These five values are the shared deploy connection. Do not introduce `FLOWVPS_*` names.
 
-The static Next.js export profile is `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. The Next.js standalone profile is `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm build`, `.next/standalone`, and `server.js`, plus a systemd unit and health-check URL.
+The install and build commands are the application's. An npm application, including AppHub, passes `npm ci` and its own build script. It does not migrate to pnpm. The workflow installs pnpm only when `pnpm-lock.yaml` or a `pnpm@` package manager is present, and it caches npm when `package-lock.json` is present. A pnpm example for the static Next.js export profile is `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm check`, `out`, and `index.html`. The Next.js standalone profile is `.nvmrc`, `pnpm install --frozen-lockfile`, `pnpm build`, `.next/standalone`, and `server.js`, plus a systemd unit and health-check URL. An npm standalone caller uses `npm ci`, `npm run build`, `.next/standalone`, and `server.js`.
 
 The caller below is what `framework deploy enable` writes for `workflowRef` `main` and `profile` `static-web`. The first line marks it as framework-managed. A caller without that line is left alone until `--approve-switch` archives it.
 
@@ -287,8 +306,8 @@ This is the integration contract for [Clain-Apps/App-Template](https://github.co
 
 1. Commit the `framework.config.json` in "Select capabilities". Generated static-web applications include `profile`, `workflowRef`, and `deploy`. Existing applications can start from the adoption file, with no deploy profile.
 2. Keep the landing page and the starter's own configuration values. Use the Clain-Apps organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT`, and the organisation secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`.
-3. After `@app-framework/dev-tools` is on the registry, add it as a dev dependency and add the `framework` scripts above. Run `pnpm framework adopt` or `pnpm framework:setup` and commit `.cursor/rules/framework` and `.cursor/framework-standards.json`. Write the managed deploy caller with `pnpm framework deploy enable` in a separate change.
-4. After `@app-framework/app-config` and `@app-framework/ui` are on the registry, add the ranges setup prints and commit the lockfile. Load UI from a client component as shown above. Call `loadPublicConfig` from browser code.
+3. After `@app-framework/dev-tools` is on the registry, add it as a dev dependency. `npm exec --yes --package=@app-framework/dev-tools -- framework adopt` does that for an existing application and updates the lockfile. Commit `framework.config.json`, `.cursor/rules/framework`, and `.cursor/framework-standards.json`. `pnpm framework:setup` applies that configuration again and does not edit dependency versions. Write the managed deploy caller with `framework deploy enable` in a separate change.
+4. After `@app-framework/app-config` and `@app-framework/ui` are marked `available`, `framework adopt` installs them. Load UI from a client component as shown above. Call `loadPublicConfig` from browser code. Commit the lockfile.
 5. Replace a copied deploy workflow with `framework deploy enable --dry-run`, then `--approve-switch` after reviewing the conflict report. Keep the managed caller. Link to `REUSABLE_PATTERNS_CATALOGUE.md` in this repository. Do not copy the catalogue or the workflow implementation.
 6. Leave App-Template's own repository out of deployment. The shared workflow skips `Clain-Apps/App-Template`.
 
@@ -296,8 +315,9 @@ Generated applications inherit that caller and that config. They pin their own p
 
 ## Current blockers
 
-- The three packages have no registry release. `scopeConfirmed` is false. Setup reports them as unpublished. The publication checklist is in [`architecture.md`](architecture.md).
-- GitHub can resolve the caller only after `.github/workflows/deploy.yml` is on the default branch of `Clain-Apps/App-Framework`. Cut `deploy-v1` from a commit that contains that file. Do not move `deploy-static-v1`. Neither tag is created by editing the file locally.
+- The three packages have no registry release. `scopeConfirmed` is false and `ownership` is `unconfirmed`. On 5 November 2026 this machine was not logged into npm. `GET https://registry.npmjs.org/-/org/app-framework` and `GET https://registry.npmjs.org/-/org/clain-apps` returned 404. `@app-framework/ui` and `@clain-apps/dev-tools` returned 404. An empty `npm org ls app-framework` from a logged-out machine is not ownership. Setup and adopt report the packages as unpublished. The publication checklist is in [`architecture.md`](architecture.md).
+- The release workflow cannot open its version pull request until GitHub Actions is allowed to create pull requests. Run [41934391833](https://github.com/Clain-Apps/App-Framework/actions/runs/41934391833) failed with `GitHub Actions is not permitted to create or approve pull requests`. The workflow already requests `pull-requests: write`. Enable the checkbox under Settings → Actions → General → Workflow permissions, on the repository and on the organisation if the organisation overrides it.
+- `deploy-v1` is not a git tag yet. `node scripts/verify-deploy-tag.mjs` prints the commands and does not create one. Do not move `deploy-static-v1`. Neither tag is created by editing the workflow file locally. GitHub can resolve a caller only after `.github/workflows/deploy.yml` is on the default branch.
 - For a private repository, GitHub Actions access must allow repositories in `Clain-Apps` to call workflows from this repository. That setting is in the repository's Actions settings.
 - The Clain-Apps organisation variables `VPS_HOST`, `VPS_USER`, and `DEPLOY_ROOT` (`/apps`), and the secrets `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS`, have to exist and be granted to application repositories. This repository does not create them. If the Flow VPS account is root, set `VPS_USER` to `root` and pass `allow_root: true`; non-root remains the default.
 - The deploy account must be able to create `/apps/<app-name>/`. Server profiles also need passwordless `systemctl restart` for that unit, `curl` on the host, and a health-check URL reachable from the VPS. No directory on the server was created or modified from this change, and this change was not deployed to the live VPS.

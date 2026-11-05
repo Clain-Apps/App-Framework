@@ -42,13 +42,13 @@ Product screens, data, business rules, and the choice of which optional capabili
 
 ## How a new application consumes it
 
-The application commits `framework.config.json` and, once `@app-framework/dev-tools` is published, runs:
+The application commits `framework.config.json`. Once `@app-framework/dev-tools` is published, an existing application runs:
 
 ```bash
-pnpm framework adopt
+npm exec --yes --package=@app-framework/dev-tools -- framework adopt
 ```
 
-An existing application that already has a `package.json` uses the same command. Adopt does not copy the Next.js starter, rewrite product code, or write a deploy caller.
+App-Template should depend on the published packages so a generated application gets the same CLI from `npm install`. Adopt does not copy the Next.js starter, rewrite product code, or write a deploy caller. It does not replace the application's package manager.
 
 The CLI reads `framework.config.json`, checks the requested capabilities against the manifest, resolves their dependencies, and applies the distribution mechanism each capability actually has. Today that means copying Cursor standards. Writing a deploy caller is a separate `framework deploy enable` step. The npm packages have no registry release, so the CLI reports them and does not pretend they are installed. The steps, the configuration file, and the caller are in [`consumer-contract.md`](consumer-contract.md).
 
@@ -87,7 +87,7 @@ The static profile builds a directory of files. Server profiles restart a system
 
 | Capability | Mechanism | Current state |
 | --- | --- | --- |
-| npm packages | registry | Unpublished. `scopeConfirmed` is false. An anonymous lookup on 26 October 2026 returned HTTP 404 for all three names. A 404 does not show who owns `@app-framework`. |
+| npm packages | registry | Unpublished. `scopeConfirmed` is false. On 5 November 2026 the registry org endpoints for `app-framework` and `clain-apps` returned 404, and this machine was not logged into npm. A 404 does not show who owns `@app-framework`. |
 | Cursor standards | file copy | Available from a checkout, and from `framework adopt` / `framework upgrade`. |
 | Application deployment | `workflow_call` | The workflow file is in this repository. Another repository can call it after the file is on the default branch of `Clain-Apps/App-Framework`. |
 | Package release | this repository's release workflow | Skipped until the scope is confirmed. The manual publication steps are in [`architecture.md`](architecture.md). |

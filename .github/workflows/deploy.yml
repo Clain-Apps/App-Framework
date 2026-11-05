@@ -535,16 +535,50 @@ jobs:
           repository: ${{ github.repository }}
           ref: ${{ github.sha }}
 
-      - name: Install pnpm
+      - name: Detect the package manager
         if: inputs.rollback == false
+        id: package-manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager=npm
+          cache=
+          if [[ -f pnpm-lock.yaml ]]; then
+            manager=pnpm
+            cache=pnpm
+          elif [[ -f yarn.lock ]]; then
+            manager=yarn
+            cache=yarn
+          elif [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
+            manager=npm
+            cache=npm
+          elif [[ -f package.json ]]; then
+            declared="$(node -p "require('./package.json').packageManager || ''")"
+            case "${declared}" in
+              pnpm@*) manager=pnpm ;;
+              yarn@*) manager=yarn ;;
+              npm@*) manager=npm ;;
+            esac
+          fi
+          echo "manager=${manager}" >> "$GITHUB_OUTPUT"
+          echo "cache=${cache}" >> "$GITHUB_OUTPUT"
+          echo "Detected package manager: ${manager}."
+
+      - name: Install pnpm
+        if: inputs.rollback == false && steps.package-manager.outputs.manager == 'pnpm'
         uses: pnpm/action-setup@v4
+
+      - name: Enable Yarn
+        if: inputs.rollback == false && steps.package-manager.outputs.manager == 'yarn'
+        shell: bash
+        run: corepack enable
 
       - name: Set up Node.js
         if: inputs.rollback == false
         uses: actions/setup-node@v4
         with:
           node-version-file: ${{ inputs.node_version_file }}
-          cache: pnpm
+          cache: ${{ steps.package-manager.outputs.cache }}
 
       - name: Install dependencies
         if: inputs.rollback == false

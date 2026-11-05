@@ -52,7 +52,16 @@ describe("framework adopt", () => {
       expect(dryRun.lines).toContain("  config  write  framework.config.json");
       expect(listFiles(cwd).includes("framework.config.json")).toBe(false);
 
-      const applied = runAdopt({ cwd });
+      const calls: string[] = [];
+      const applied = runAdopt({
+        cwd,
+        runCommand: (command, args) => {
+          calls.push(`${command} ${args.join(" ")}`);
+          return { status: 0, stdout: "", stderr: "" };
+        },
+      });
+      expect(calls).toEqual([]);
+      expect(applied.lines.some((line) => line.includes("ui") && line.includes("blocked"))).toBe(true);
       expect(applied.exitCode).toBe(0);
       expect(applied.wrote).toBe(true);
       expect(applied.lines).toContain("  package-manager  pnpm  package.json packageManager");

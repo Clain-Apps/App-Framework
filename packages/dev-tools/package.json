@@ -5,10 +5,15 @@
   "description": "Adopts App-Framework in an application, reports integration status, and applies selected capabilities.",
   "type": "module",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Clain-Apps/App-Framework.git",
+    "directory": "packages/dev-tools"
+  },
   "bin": {
-    "framework": "./dist/framework-cli.js",
-    "framework-check": "./dist/cli.js",
-    "framework-setup": "./dist/setup-cli.js"
+    "framework": "./dist/bin/framework.js",
+    "framework-check": "./dist/bin/framework-check.js",
+    "framework-setup": "./dist/bin/framework-setup.js"
   },
   "exports": {
     ".": {
@@ -19,7 +24,8 @@
   "files": ["dist", "README.md", "CHANGELOG.md"],
   "sideEffects": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=22"

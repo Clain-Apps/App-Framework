@@ -4,9 +4,11 @@ The shared source for application packages, Cursor standards, and the applicatio
 
 [App-Template](https://github.com/Clain-Apps/App-Template) assembles a bootable application: the landing page, product configuration, and a thin caller for the shared workflow. This repository does not depend on App-Template.
 
-The npm packages are private. [`framework.scope.json`](framework.scope.json) has `scopeConfirmed: false`, so the release workflow does not publish, and an application cannot install the packages from the registry yet.
+Applications install the published packages. They do not clone this repository or copy its source. The intended npm scope is `@app-framework`, recorded in [`framework.scope.json`](framework.scope.json). `scopeConfirmed` is false: this machine is not logged into npm, and on 5 November 2026 the registry had no `@app-framework` or `@clain-apps` organisation. Nothing is published until that scope is confirmed. The adoption command, once the package is on the registry, is `npm exec --yes --package=@app-framework/dev-tools -- framework adopt`.
 
 ## Develop
+
+These commands are for Framework contributors. Applications do not build a checkout or use `npm link`.
 
 Node.js 24 is the supported LTS line (`.nvmrc`). The packages also run on Node.js 22 or newer. pnpm is pinned with `packageManager` to 12.15.0.
 

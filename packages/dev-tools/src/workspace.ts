@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { isManagedDeployCaller } from "./config.js";
@@ -70,6 +71,15 @@ export function detectPackageManager(cwd: string, packageJson?: Record<string, u
   if (existsSync(path.join(cwd, "yarn.lock"))) return { name: "yarn", source: "yarn.lock" };
   if (existsSync(path.join(cwd, "package-lock.json"))) return { name: "npm", source: "package-lock.json" };
   return undefined;
+}
+
+export function runPackageManager(command: string, args: readonly string[], cwd: string): CommandResult {
+  const result = spawnSync(command, [...args], {
+    cwd,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+  });
+  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
 export function installArguments(
