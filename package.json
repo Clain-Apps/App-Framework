@@ -26,7 +26,7 @@
     "@eslint/js": "^10.0.1",
     "@manypkg/get-packages": "^3.1.0",
     "@types/node": "^24.19.2",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "happy-dom": "^21.0.4",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.72.0",
