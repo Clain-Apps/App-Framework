@@ -566,7 +566,7 @@ jobs:
 
       - name: Install pnpm
         if: inputs.rollback == false && steps.package-manager.outputs.manager == 'pnpm'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Enable Yarn
         if: inputs.rollback == false && steps.package-manager.outputs.manager == 'yarn'
